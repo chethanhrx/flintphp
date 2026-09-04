@@ -221,6 +221,35 @@ $cleanData = $result->validated();
 
 Built-in rules include `required`, `string`, `integer`, `email`, `min:X`, `max:X`, and `in:A,B,C`. You can also easily create custom rules by implementing `RuleInterface`.
 
+### Database
+
+FlintPHP includes a clean, minimal PDO-based Database Foundation.
+
+```php
+use FlintPHP\Framework\Database\ConnectionFactory;
+
+$connection = ConnectionFactory::make([
+    'driver' => 'sqlite',
+    'database' => ':memory:',
+]);
+
+// Execute statement
+$connection->execute('INSERT INTO users (name, age) VALUES (?, ?)', ['Chethan', 25]);
+
+// Fetch multiple rows
+$users = $connection->fetchAll('SELECT * FROM users WHERE age > :age', ['age' => 18]);
+
+// Fetch single row
+$user = $connection->fetch('SELECT * FROM users WHERE id = ?', [1]);
+
+// Transactions
+$connection->transaction(function () use ($connection) {
+    $connection->execute('UPDATE users SET active = 1');
+});
+```
+
+The database component deliberately focuses on infrastructure and does not currently include an ORM or Query Builder.
+
 ## Philosophy
 
 FlintPHP is built around these principles:
