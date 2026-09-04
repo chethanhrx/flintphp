@@ -24,9 +24,10 @@ use FlintPHP\Framework\Http\Request;
 final class Router
 {
     /**
-     * Static routes indexed by "METHOD:/path" for O(1) lookup.
+     * Static routes indexed by path and then method for O(1) lookup.
+     * format: [path][method] = Route
      *
-     * @var array<string, Route>
+     * @var array<string, array<string, Route>>
      */
     private array $staticRoutes = [];
 
@@ -60,10 +61,13 @@ final class Router
         $route = new Route($method, $path, $handler, $name);
 
         if ($route->isStatic()) {
-            $key = $method . ':' . $path;
-            $this->staticRoutes[$key] = $route;
+            if (!isset($this->staticRoutes[$path])) {
+                $this->staticRoutes[$path] = [];
+            }
+            $this->staticRoutes[$path][$method] = $route;
         } else {
-            $this->dynamicRoutes[] = $route;
+            // Unshift so that the last registered route takes precedence
+            array_unshift($this->dynamicRoutes, $route);
         }
 
         $this->allRoutes[] = $route;
@@ -142,14 +146,18 @@ final class Router
         $path = $request->path();
 
         // 1. Static route lookup — O(1)
-        $staticKey = $method . ':' . $path;
-        if (isset($this->staticRoutes[$staticKey])) {
-            return RoutingResult::found($this->staticRoutes[$staticKey]);
+        if (isset($this->staticRoutes[$path])) {
+            if (isset($this->staticRoutes[$path][$method])) {
+                return RoutingResult::found($this->staticRoutes[$path][$method]);
+            }
+
+            // Path exists statically, but method differs
+            $allowedMethods = array_keys($this->staticRoutes[$path]);
+        } else {
+            $allowedMethods = [];
         }
 
         // 2. Dynamic route matching
-        $allowedMethods = [];
-
         foreach ($this->dynamicRoutes as $route) {
             $params = $route->matches($path);
 
@@ -166,15 +174,8 @@ final class Router
             $allowedMethods[] = $route->method();
         }
 
-        // Also check static routes for method mismatch on this path
-        foreach ($this->staticRoutes as $route) {
-            if ($route->pattern() === $path && $route->method() !== $method) {
-                $allowedMethods[] = $route->method();
-            }
-        }
-
         if ($allowedMethods !== []) {
-            return RoutingResult::methodNotAllowed(array_unique($allowedMethods));
+            return RoutingResult::methodNotAllowed(array_values(array_unique($allowedMethods)));
         }
 
         return RoutingResult::notFound();

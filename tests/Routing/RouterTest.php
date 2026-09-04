@@ -102,6 +102,46 @@ final class RouterTest extends TestCase
         $this->assertSame('static', $result->handler());
     }
 
+    #[Test]
+    public function duplicate_static_routes_last_registered_wins(): void
+    {
+        $this->router->get('/users', 'first');
+        $this->router->get('/users', 'second');
+
+        $request = new Request('GET', '/users');
+        $result = $this->router->match($request);
+
+        $this->assertTrue($result->isFound());
+        $this->assertSame('second', $result->handler());
+    }
+
+    #[Test]
+    public function duplicate_dynamic_routes_last_registered_wins(): void
+    {
+        $this->router->get('/users/{id}', 'first');
+        $this->router->get('/users/{slug}', 'second');
+
+        $request = new Request('GET', '/users/42');
+        $result = $this->router->match($request);
+
+        $this->assertTrue($result->isFound());
+        $this->assertSame('second', $result->handler());
+        // Second route used {slug} as parameter name
+        $this->assertSame(['slug' => '42'], $result->parameters());
+    }
+
+    #[Test]
+    public function it_supports_custom_http_methods(): void
+    {
+        $this->router->add('PURGE', '/cache', 'purge.handler');
+
+        $request = new Request('PURGE', '/cache');
+        $result = $this->router->match($request);
+
+        $this->assertTrue($result->isFound());
+        $this->assertSame('purge.handler', $result->handler());
+    }
+
     // ---------------------------------------------------------------
     // Matching — Not Found
     // ---------------------------------------------------------------

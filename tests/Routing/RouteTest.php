@@ -175,6 +175,24 @@ final class RouteTest extends TestCase
     // ---------------------------------------------------------------
 
     #[Test]
+    public function it_rejects_missing_leading_slash(): void
+    {
+        $this->expectException(RoutingException::class);
+        $this->expectExceptionMessage('must start with a forward slash');
+
+        new Route('GET', 'users/{id}', fn() => null);
+    }
+
+    #[Test]
+    public function it_rejects_empty_pattern(): void
+    {
+        $this->expectException(RoutingException::class);
+        $this->expectExceptionMessage('must start with a forward slash');
+
+        new Route('GET', '', fn() => null);
+    }
+
+    #[Test]
     public function it_rejects_empty_parameter_names(): void
     {
         $this->expectException(RoutingException::class);

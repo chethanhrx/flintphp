@@ -43,8 +43,15 @@ final class Route
         private readonly mixed $handler,
         private readonly ?string $name = null,
     ) {
+        if (!str_starts_with($pattern, '/')) {
+            throw new RoutingException(
+                sprintf('Route pattern "%s" must start with a forward slash (/).', $pattern),
+            );
+        }
+
         [$this->regex, $this->parameterNames, $this->static] = self::compile($pattern);
     }
+
 
     /**
      * Get the HTTP method.
