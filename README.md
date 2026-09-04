@@ -248,7 +248,54 @@ $connection->transaction(function () use ($connection) {
 });
 ```
 
-The database component deliberately focuses on infrastructure and does not currently include an ORM or Query Builder.
+### ORM Foundation
+
+FlintPHP includes a lightweight Data Mapper ORM that strictly separates persistence from data. It avoids magic properties in favor of IDE-friendly typed properties and rejects global database state by requiring instance-based API usage.
+
+```php
+use FlintPHP\Framework\Orm\Model;
+use FlintPHP\Framework\Orm\OrmManager;
+
+// 1. Define a strictly typed model
+class User extends Model
+{
+    protected string $table = 'users';
+    protected array $fillable = ['name', 'email'];
+
+    public int $id;
+    public string $name;
+    public string $email;
+}
+
+// 2. Instantiate the OrmManager with a ConnectionInterface
+$orm = new OrmManager($connection);
+
+// 3. Find and update
+$user = $orm->find(User::class, 1);
+$user->name = 'Jane Doe';
+$orm->save($user);
+
+// 4. Query builder
+$activeUsers = $orm->query(User::class)
+    ->where('active', 1)
+    ->get();
+
+// 5. Mass assignment securely limits payload using $fillable
+$newUser = new User();
+$orm->fill($newUser, $_POST);
+$orm->save($newUser);
+```
+
+### Model Contract
+
+When defining FlintPHP ORM models, the following architectural rules apply:
+
+1. **Only public, non-static properties** are treated as ORM attributes and are persisted/hydrated.
+2. **Protected and private properties** are internal to the object and are never treated as ORM attributes.
+3. **Static properties** are never persisted or hydrated.
+4. **Hydration bypasses constructors**. When `$orm->find()` fetches a record, the model is instantiated without calling its constructor to prevent unintended side effects on existing entities.
+5. **Transient properties** (public properties initialized at runtime that do not correspond to database columns) should be avoided, as the ORM will attempt to persist them, resulting in a database exception. All initialized public properties are treated as persistable attributes.
+6. Model attributes are expected to match the database columns used by the ORM.
 
 ## Philosophy
 
