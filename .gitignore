@@ -1,0 +1,28 @@
+# Dependencies
+/vendor/
+
+# Composer lock (library - not committed so CI tests latest compatible versions)
+composer.lock
+
+# PHPUnit
+.phpunit.cache/
+.phpunit.result.cache
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.phar
