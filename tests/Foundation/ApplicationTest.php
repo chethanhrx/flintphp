@@ -9,7 +9,6 @@ use FlintPHP\Framework\Foundation\FlintPHP;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 
 #[CoversClass(Application::class)]
 final class ApplicationTest extends TestCase
@@ -72,14 +71,20 @@ final class ApplicationTest extends TestCase
     }
 
     #[Test]
-    public function it_throws_when_booted_twice(): void
+    public function it_can_be_booted_multiple_times_safely(): void
     {
         $app = new Application('/var/www/myapp');
         $app->boot();
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Application has already been booted.');
-
         $app->boot();
+
+        $this->assertTrue($app->isBooted());
+    }
+
+    #[Test]
+    public function it_preserves_root_path(): void
+    {
+        $app = new Application('/');
+
+        $this->assertSame('/', $app->basePath());
     }
 }

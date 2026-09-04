@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace FlintPHP\Framework\Foundation;
 
-use RuntimeException;
 
 /**
  * The FlintPHP Application.
@@ -40,12 +39,12 @@ final class Application
      * register service providers, compile the container, and prepare
      * the kernel.
      *
-     * @throws RuntimeException If the application has already been booted.
+     * This method is idempotent — calling it multiple times is safe.
      */
     public function boot(): void
     {
         if ($this->booted) {
-            throw new RuntimeException('Application has already been booted.');
+            return;
         }
 
         $this->booted = true;
@@ -62,11 +61,12 @@ final class Application
     /**
      * Get the base path of the application.
      *
-     * Returns the path with trailing directory separators removed.
+     * Returns the path with trailing directory separators removed,
+     * preserving the root path '/' on Unix systems.
      */
     public function basePath(): string
     {
-        return rtrim($this->basePath, DIRECTORY_SEPARATOR);
+        return rtrim($this->basePath, DIRECTORY_SEPARATOR) ?: DIRECTORY_SEPARATOR;
     }
 
     /**
