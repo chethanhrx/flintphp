@@ -69,6 +69,41 @@ if ($result->isFound()) {
 
 *Note: The Router does not execute handlers or controllers itself. It strictly matches the path to the registered route, allowing the Kernel to manage execution and dependency injection.*
 
+### Middleware
+
+FlintPHP uses a standard "onion" pipeline architecture for middleware. Middleware wraps the final request handler.
+
+```php
+use FlintPHP\Framework\Http\Request;
+use FlintPHP\Framework\Http\Response;
+use FlintPHP\Framework\Middleware\MiddlewareInterface;
+use FlintPHP\Framework\Middleware\MiddlewareStack;
+
+class AuthMiddleware implements MiddlewareInterface
+{
+    public function process(Request $request, callable $next): Response
+    {
+        if (!$request->header('Authorization')) {
+            return new Response('Unauthorized', 401);
+        }
+
+        // Pass to the next layer
+        $response = $next($request);
+
+        // Optionally modify the response on the way out
+        return $response->withHeader('X-Processed-By', 'AuthMiddleware');
+    }
+}
+
+$stack = new MiddlewareStack([
+    new AuthMiddleware(),
+]);
+
+$response = $stack->handle($request, function (Request $req): Response {
+    return new Response('Hello World!');
+});
+```
+
 ### HTTP Request & Response
 
 ```php
