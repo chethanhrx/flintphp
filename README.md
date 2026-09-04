@@ -192,6 +192,35 @@ $container->bind(CacheInterface::class, RedisCache::class);
 $service = $container->get(MyService::class);
 ```
 
+### Validation
+
+FlintPHP provides a standalone, framework-agnostic Validation component that handles untrusted input without being coupled to the HTTP Request.
+
+```php
+use FlintPHP\Framework\Validation\Validator;
+
+$validator = new Validator();
+
+$data = [
+    'email' => 'user@example.com',
+    'age'   => '25',
+];
+
+$result = $validator->validate($data, [
+    'email' => ['required', 'string', 'email'],
+    'age'   => ['required', 'integer', 'min:18'],
+]);
+
+if (!$result->isValid()) {
+    $errors = $result->errors();
+    // ['age' => ['The age must be at least 18.']]
+}
+
+$cleanData = $result->validated();
+```
+
+Built-in rules include `required`, `string`, `integer`, `email`, `min:X`, `max:X`, and `in:A,B,C`. You can also easily create custom rules by implementing `RuleInterface`.
+
 ## Philosophy
 
 FlintPHP is built around these principles:
