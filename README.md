@@ -284,6 +284,16 @@ Provides a minimal, synchronous, deterministic event dispatcher. Events are just
 
 > **Limitations:** v0.15.0 is intentionally minimal. It does NOT provide asynchronous events, queued listeners, event sourcing, listener priorities, wildcard matching, or DI container auto-resolution.
 
+## 16. CLI Foundation (v0.16.0)
+Provides a small, dependency-free registry and dispatcher for console commands without relying on complex POSIX getopt parsing or global state.
+
+*   `CommandInterface`: Contract for commands with `name()`, `description()`, and `execute(Input $input, OutputInterface $output): int`.
+*   `ConsoleApplication`: The command registry. It matches the command name from `$argv`, routes it, and bubbles up integer exit codes cleanly. It does NOT call `exit()` directly, making it highly testable.
+*   `Input`: Encapsulates `$argv` securely, providing `getCommandName()` and `getArgument(int $index)` for 0-indexed positional arguments.
+*   `ConsoleOutput`: Encapsulates output streams with `writeLn()` for standard output and `writeErrorLn()` for standard error.
+
+> **Limitations:** v0.16.0 focuses entirely on routing, execution, and exit codes. Options parsing (e.g. `--force=true`), auto-generated help menus, styling/colors, and container integration are deferred to future milestones. Any exception thrown inside a command propagates naturally and must be caught by the front controller.
+
 ## Installation
 
 ### ORM Foundation
