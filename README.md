@@ -273,6 +273,17 @@ Provides a lightweight, minimal abstraction for background job processing withou
 
 > **Limitations:** v0.14.0 establishes the interface contract. It is strictly in-memory. Persistent queues (Redis/database), durable delivery, retry semantics, and delayed jobs are explicitly out-of-scope for this foundation phase and deferred to future versions. Exceptions thrown during `handle()` will propagate naturally and the job is not automatically requeued.
 
+## 15. Events Foundation (v0.15.0)
+Provides a minimal, synchronous, deterministic event dispatcher. Events are just standard PHP objects; no base class is required.
+
+*   `EventDispatcherInterface`: Provides `listen(string $eventClass, callable $listener)` and `dispatch(object $event)`.
+*   **Exact Matching**: Listeners are registered to exact class names (`get_class($event)`). Inheritance and interface matching are explicitly excluded for predictability.
+*   **Synchronous Execution**: Listeners execute sequentially. If a listener throws a `Throwable`, execution halts and the exception propagates naturally.
+*   **Re-entrant Safe**: Dispatching an event from within a listener is completely safe.
+*   **Listener Snapshots**: If a listener registers another listener during dispatch, the new listener won't execute during the *current* dispatch loop, preventing infinite recursion.
+
+> **Limitations:** v0.15.0 is intentionally minimal. It does NOT provide asynchronous events, queued listeners, event sourcing, listener priorities, wildcard matching, or DI container auto-resolution.
+
 ## Installation
 
 ### ORM Foundation
