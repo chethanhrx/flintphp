@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace FlintPHP\Framework\Tests\Http;
 
+use FlintPHP\Framework\Container\Container;
 use FlintPHP\Framework\Http\Kernel;
 use FlintPHP\Framework\Http\Request;
 use FlintPHP\Framework\Http\Response;
 use FlintPHP\Framework\Middleware\MiddlewareInterface;
 use FlintPHP\Framework\Middleware\MiddlewareStack;
+use FlintPHP\Framework\Routing\Exception\InvalidHandlerException;
+use FlintPHP\Framework\Routing\HandlerInvoker;
 use FlintPHP\Framework\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -19,16 +22,20 @@ use RuntimeException;
 final class KernelTest extends TestCase
 {
     private Router $router;
+    private Container $container;
+    private HandlerInvoker $invoker;
 
     protected function setUp(): void
     {
         $this->router = new Router();
+        $this->container = new Container();
+        $this->invoker = new HandlerInvoker($this->container);
     }
 
     #[Test]
     public function it_returns_404_when_route_is_not_found(): void
     {
-        $kernel = new Kernel($this->router, new MiddlewareStack());
+        $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker);
         $request = new Request('GET', '/unknown');
 
         $response = $kernel->handle($request);
@@ -43,7 +50,7 @@ final class KernelTest extends TestCase
         $this->router->get('/users', fn() => new Response());
         $this->router->post('/users', fn() => new Response());
 
-        $kernel = new Kernel($this->router, new MiddlewareStack());
+        $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker);
         $request = new Request('DELETE', '/users');
 
         $response = $kernel->handle($request);
@@ -60,7 +67,7 @@ final class KernelTest extends TestCase
             return new Response('OK');
         });
 
-        $kernel = new Kernel($this->router, new MiddlewareStack());
+        $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker);
         $request = new Request('GET', '/health');
 
         $response = $kernel->handle($request);
@@ -77,7 +84,7 @@ final class KernelTest extends TestCase
             return new Response($body);
         });
 
-        $kernel = new Kernel($this->router, new MiddlewareStack());
+        $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker);
         $request = new Request('GET', '/users/42/posts/99');
 
         $response = $kernel->handle($request);
@@ -91,11 +98,11 @@ final class KernelTest extends TestCase
     {
         $this->router->get('/invalid', 'NotACallable@index');
 
-        $kernel = new Kernel($this->router, new MiddlewareStack());
+        $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker);
         $request = new Request('GET', '/invalid');
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Route handler is not callable');
+        $this->expectException(InvalidHandlerException::class);
+        $this->expectExceptionMessage('not callable');
 
         $kernel->handle($request);
     }
@@ -107,7 +114,7 @@ final class KernelTest extends TestCase
             throw new RuntimeException('Handler went boom');
         });
 
-        $kernel = new Kernel($this->router, new MiddlewareStack());
+        $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker);
         $request = new Request('GET', '/boom');
 
         $this->expectException(RuntimeException::class);
@@ -136,7 +143,7 @@ final class KernelTest extends TestCase
             return new Response();
         });
 
-        $kernel = new Kernel($this->router, new MiddlewareStack([$middleware]));
+        $kernel = new Kernel($this->router, new MiddlewareStack([$middleware]), $this->invoker);
         $request = new Request('GET', '/test');
 
         $kernel->handle($request);
@@ -168,7 +175,7 @@ final class KernelTest extends TestCase
             return new Response();
         });
 
-        $kernel = new Kernel($this->router, new MiddlewareStack([$middleware]));
+        $kernel = new Kernel($this->router, new MiddlewareStack([$middleware]), $this->invoker);
         $request = new Request('GET', '/test');
 
         $response = $kernel->handle($request);
@@ -197,7 +204,7 @@ final class KernelTest extends TestCase
             }
         };
 
-        $kernel = new Kernel($this->router, new MiddlewareStack([$middleware]));
+        $kernel = new Kernel($this->router, new MiddlewareStack([$middleware]), $this->invoker);
         $request = new Request('GET', '/unknown');
 
         $response = $kernel->handle($request);

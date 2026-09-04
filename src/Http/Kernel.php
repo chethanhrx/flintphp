@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace FlintPHP\Framework\Http;
 
 use FlintPHP\Framework\Middleware\MiddlewareStack;
+use FlintPHP\Framework\Routing\HandlerInvoker;
 use FlintPHP\Framework\Routing\Router;
-use RuntimeException;
 
 /**
  * The HTTP Kernel.
@@ -14,19 +14,18 @@ use RuntimeException;
  * The Kernel orchestrates the request lifecycle. It accepts an incoming
  * HTTP Request, passes it through the MiddlewareStack, matches a Route
  * using the Router, executes the matched handler, and returns an HTTP Response.
- *
- * Handlers in v0.5 MUST be strictly callable and must match the signature:
- * `fn(Request $request, array $parameters): Response`
  */
 final class Kernel
 {
     /**
      * @param Router          $router          The routing engine.
      * @param MiddlewareStack $middlewareStack The middleware pipeline.
+     * @param HandlerInvoker  $invoker         The handler dispatcher.
      */
     public function __construct(
         private readonly Router $router,
         private readonly MiddlewareStack $middlewareStack,
+        private readonly HandlerInvoker $invoker,
     ) {
     }
 
@@ -42,13 +41,7 @@ final class Kernel
             $result = $this->router->match($req);
 
             if ($result->isFound()) {
-                $handler = $result->handler();
-
-                if (!is_callable($handler)) {
-                    throw new RuntimeException('Route handler is not callable.');
-                }
-
-                return $handler($req, $result->parameters());
+                return $this->invoker->invoke($result->handler(), $req, $result->parameters());
             }
 
             if ($result->isMethodNotAllowed()) {

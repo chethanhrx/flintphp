@@ -113,17 +113,20 @@ use FlintPHP\Framework\Http\Kernel;
 use FlintPHP\Framework\Http\Request;
 use FlintPHP\Framework\Middleware\MiddlewareStack;
 use FlintPHP\Framework\Routing\Router;
+use FlintPHP\Framework\Container\Container;
+use FlintPHP\Framework\Routing\HandlerInvoker;
+
+$container = new Container();
 
 $router = new Router();
-$router->get('/users/{id}', function (Request $request, array $parameters) {
-    return new Response("User ID: " . $parameters['id']);
-});
+$router->get('/users/{id}', [UserController::class, 'show']);
 
 $middlewareStack = new MiddlewareStack([
     // new SecurityHeadersMiddleware(),
 ]);
 
-$kernel = new Kernel($router, $middlewareStack);
+$invoker = new HandlerInvoker($container);
+$kernel = new Kernel($router, $middlewareStack, $invoker);
 
 $request = Request::fromGlobals();
 $response = $kernel->handle($request);
