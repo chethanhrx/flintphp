@@ -158,6 +158,37 @@ $jsonResponse = Response::json([
 ], status: 201);
 ```
 
+### Dependency Injection Container
+
+FlintPHP includes a PSR-11 compliant Dependency Injection Container with automatic reflection-based autowiring.
+
+```php
+use FlintPHP\Framework\Container\Container;
+
+$container = new Container();
+
+// 1. Explicit value binding
+$container->set('config.debug', true);
+
+// 2. Closure factories (transient)
+$container->set(Database::class, function ($c) {
+    return new Database($c->get('config.db'));
+});
+
+// 3. Singletons (cached after first resolution)
+$container->singleton(LoggerInterface::class, function () {
+    return new FileLogger('/tmp/app.log');
+});
+
+// 4. Aliases (interfaces to concretes)
+$container->bind(CacheInterface::class, RedisCache::class);
+
+// 5. Automatic Constructor Resolution (Autowiring)
+// The container will automatically inspect MyService's constructor
+// and recursively resolve its typed dependencies.
+$service = $container->get(MyService::class);
+```
+
 ## Philosophy
 
 FlintPHP is built around these principles:
