@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace FlintPHP\Framework\Http;
 
+use FlintPHP\Framework\Security\Http\TrustedProxyConfiguration;
+
 /**
  * Immutable HTTP request representation.
  *
@@ -33,6 +35,7 @@ final class Request
      * @param array<string, string> $cookies Request cookies.
      * @param array<string, mixed> $query   Parsed query parameters.
      * @param array<string, mixed> $attributes Custom request attributes.
+     * @param string|null $clientIp The resolved client IP address.
      */
     public function __construct(
         private readonly string $method,
@@ -43,6 +46,7 @@ final class Request
         private readonly array $cookies = [],
         private readonly array $query = [],
         private readonly array $attributes = [],
+        private readonly ?string $clientIp = null,
     ) {
         $this->headerBag = $headers instanceof HeaderBag
             ? $headers
@@ -56,11 +60,13 @@ final class Request
      * superglobals directly. All other code works with the
      * Request object.
      */
-    public static function fromGlobals(): self
+    public static function fromGlobals(?TrustedProxyConfiguration $trustedProxies = null): self
     {
         $server = $_SERVER;
         $method = strtoupper($server['REQUEST_METHOD'] ?? 'GET');
         $uri = $server['REQUEST_URI'] ?? '/';
+
+        $clientIp = self::resolveClientIp($server, $trustedProxies);
 
         return new self(
             method: $method,
@@ -71,6 +77,7 @@ final class Request
             cookies: $_COOKIE,
             query: $_GET,
             attributes: [],
+            clientIp: $clientIp,
         );
     }
 
@@ -261,6 +268,7 @@ final class Request
             cookies: $this->cookies,
             query: $this->query,
             attributes: $attributes,
+            clientIp: $this->clientIp,
         );
     }
 
@@ -280,6 +288,7 @@ final class Request
             cookies: $this->cookies,
             query: $this->query,
             attributes: $this->attributes,
+            clientIp: $this->clientIp,
         );
     }
 
@@ -293,5 +302,48 @@ final class Request
         $body = file_get_contents('php://input');
 
         return $body !== false ? $body : '';
+    }
+
+    /**
+     * Get the resolved client IP address.
+     */
+    public function clientIp(): ?string
+    {
+        return $this->clientIp;
+    }
+
+    /**
+     * Resolve the client IP address from server variables and trusted proxies.
+     *
+     * @param array<string, mixed> $server
+     * @param TrustedProxyConfiguration|null $trustedProxies
+     * @return string|null
+     */
+    private static function resolveClientIp(array $server, ?TrustedProxyConfiguration $trustedProxies): ?string
+    {
+        $remoteAddr = $server['REMOTE_ADDR'] ?? null;
+
+        if ($remoteAddr === null || $trustedProxies === null || !$trustedProxies->isTrusted($remoteAddr)) {
+            return $remoteAddr;
+        }
+
+        if (isset($server['HTTP_X_FORWARDED_FOR'])) {
+            $ips = explode(',', $server['HTTP_X_FORWARDED_FOR']);
+            $ips = array_map('trim', $ips);
+
+            // Go from right to left, if an IP is trusted, keep going left.
+            // If we find an untrusted one, that's the client IP.
+            $ips = array_reverse($ips);
+            foreach ($ips as $ip) {
+                if (!$trustedProxies->isTrusted($ip)) {
+                    return $ip;
+                }
+            }
+
+            // If all IPs in the chain are trusted proxies, the client IP is the leftmost one
+            return end($ips);
+        }
+
+        return $remoteAddr;
     }
 }

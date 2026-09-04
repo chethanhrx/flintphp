@@ -40,13 +40,15 @@ final class HeaderBag
         $originalKeys = [];
 
         foreach ($headers as $name => $value) {
+            $values = is_array($value) ? $value : [$value];
+            self::validate($name, $values);
+
             $lower = strtolower($name);
 
             if (!isset($originalKeys[$lower])) {
                 $originalKeys[$lower] = $name;
             }
 
-            $values = is_array($value) ? $value : [$value];
             $normalized[$lower] = array_merge($normalized[$lower] ?? [], $values);
         }
 
@@ -115,6 +117,9 @@ final class HeaderBag
      */
     public function withHeader(string $name, string|array $value): self
     {
+        $values = is_array($value) ? $value : [$value];
+        self::validate($name, $values);
+
         $headers = $this->toConstructorFormat();
 
         // Remove existing header with same lowercase key
@@ -124,7 +129,7 @@ final class HeaderBag
             }
         }
 
-        $headers[$name] = is_array($value) ? $value : [$value];
+        $headers[$name] = $values;
 
         return new self($headers);
     }
@@ -159,6 +164,24 @@ final class HeaderBag
     public function isEmpty(): bool
     {
         return $this->headers === [];
+    }
+
+    /**
+     * Validate header name and value according to RFC 7230.
+     *
+     * @throws \InvalidArgumentException If name or value is invalid.
+     */
+    private static function validate(string $name, array $values): void
+    {
+        if ($name === '' || !preg_match('/^[a-zA-Z0-9\!#\$%&\'\*\+\-\.\^\_\`\|\~]+$/', $name)) {
+            throw new \InvalidArgumentException(sprintf('Invalid header name: "%s"', $name));
+        }
+
+        foreach ($values as $value) {
+            if (strpbrk($value, "\r\n") !== false) {
+                throw new \InvalidArgumentException('Header value cannot contain CR or LF characters.');
+            }
+        }
     }
 
     /**
