@@ -104,6 +104,33 @@ $response = $stack->handle($request, function (Request $req): Response {
 });
 ```
 
+### Kernel
+
+The Kernel is the orchestrator that bridges the MiddlewareStack, Router, and HTTP Request together.
+
+```php
+use FlintPHP\Framework\Http\Kernel;
+use FlintPHP\Framework\Http\Request;
+use FlintPHP\Framework\Middleware\MiddlewareStack;
+use FlintPHP\Framework\Routing\Router;
+
+$router = new Router();
+$router->get('/users/{id}', function (Request $request, array $parameters) {
+    return new Response("User ID: " . $parameters['id']);
+});
+
+$middlewareStack = new MiddlewareStack([
+    // new SecurityHeadersMiddleware(),
+]);
+
+$kernel = new Kernel($router, $middlewareStack);
+
+$request = Request::fromGlobals();
+$response = $kernel->handle($request);
+
+$response->send();
+```
+
 ### HTTP Request & Response
 
 ```php
