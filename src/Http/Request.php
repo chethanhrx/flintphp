@@ -32,6 +32,7 @@ final class Request
      * @param array<string, mixed> $server  Server/environment parameters.
      * @param array<string, string> $cookies Request cookies.
      * @param array<string, mixed> $query   Parsed query parameters.
+     * @param array<string, mixed> $attributes Custom request attributes.
      */
     public function __construct(
         private readonly string $method,
@@ -41,6 +42,7 @@ final class Request
         private readonly array $server = [],
         private readonly array $cookies = [],
         private readonly array $query = [],
+        private readonly array $attributes = [],
     ) {
         $this->headerBag = $headers instanceof HeaderBag
             ? $headers
@@ -68,6 +70,7 @@ final class Request
             server: $server,
             cookies: $_COOKIE,
             query: $_GET,
+            attributes: [],
         );
     }
 
@@ -231,6 +234,53 @@ final class Request
         }
 
         return $headers;
+    }
+
+    /**
+     * Get a specific request attribute.
+     */
+    public function getAttribute(string $name, mixed $default = null): mixed
+    {
+        return $this->attributes[$name] ?? $default;
+    }
+
+    /**
+     * Return a new Request with the specified attribute.
+     */
+    public function withAttribute(string $name, mixed $value): self
+    {
+        $attributes = $this->attributes;
+        $attributes[$name] = $value;
+
+        return new self(
+            method: $this->method,
+            uri: $this->uri,
+            headers: clone $this->headerBag,
+            body: $this->body,
+            server: $this->server,
+            cookies: $this->cookies,
+            query: $this->query,
+            attributes: $attributes,
+        );
+    }
+
+    /**
+     * Return a new Request with the given header.
+     */
+    public function withHeader(string $name, string $value): self
+    {
+        $headers = $this->headerBag->withHeader($name, $value);
+
+        return new self(
+            method: $this->method,
+            uri: $this->uri,
+            headers: $headers,
+            body: $this->body,
+            server: $this->server,
+            cookies: $this->cookies,
+            query: $this->query,
+            attributes: $this->attributes,
+        );
     }
 
     /**

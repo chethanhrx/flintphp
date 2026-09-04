@@ -297,6 +297,31 @@ When defining FlintPHP ORM models, the following architectural rules apply:
 5. **Transient properties** (public properties initialized at runtime that do not correspond to database columns) should be avoided, as the ORM will attempt to persist them, resulting in a database exception. All initialized public properties are treated as persistable attributes.
 6. Model attributes are expected to match the database columns used by the ORM.
 
+### Authentication Foundation
+
+FlintPHP v0.11 provides a strictly typed, stateless Authentication Foundation designed around Bearer Tokens, completely avoiding global state such as `Auth::user()`.
+
+The framework intercepts authentication via the `RequireAuthenticationMiddleware`, verifies credentials, and securely passes the authenticated `IdentityInterface` down the stack as an immutable Request attribute.
+
+```php
+use FlintPHP\Framework\Authentication\Middleware\RequireAuthenticationMiddleware;
+use FlintPHP\Framework\Http\Request;
+use FlintPHP\Framework\Http\Response;
+
+// 1. In a Controller or downstream Middleware, retrieve the isolated Identity
+class ProfileController
+{
+    public function show(Request $request): Response
+    {
+        $identity = $request->getAttribute('identity');
+
+        return new Response(200, [], 'Hello user: ' . $identity->getIdentifier());
+    }
+}
+```
+
+Authentication errors (such as missing or invalid Bearer tokens) are caught securely by the middleware, which immediately short-circuits the request and returns a standard `401 Unauthorized` HTTP response containing the `WWW-Authenticate: Bearer` header.
+
 ## Philosophy
 
 FlintPHP is built around these principles:
