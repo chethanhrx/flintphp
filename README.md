@@ -248,6 +248,33 @@ $connection->transaction(function () use ($connection) {
 });
 ```
 
+### 9. Database Foundation (v0.9.0)
+*(Internal database abstraction, PDO connection handling, query builder.)*
+
+## 10. Lightweight Data Mapper ORM (v0.10.0)
+*(See ORM Foundation section.)*
+
+## 11. Authentication (v0.11.0)
+*(Stateless Bearer token authentication, HTTP password hashing, flexible UserProvider.)*
+
+## 12. Security Foundation (v0.12.0)
+*(Strict HTTP Header validation, Trusted Proxy support, secure headers middleware.)*
+
+## 13. Cache Foundation (v0.13.0)
+*(PSR-16 interface, secure JSON-serialized FileCache avoiding deserialization exploits, and in-memory ArrayCache.)*
+
+## 14. Queue Foundation (v0.14.0)
+Provides a lightweight, minimal abstraction for background job processing without relying on hidden magic or persistence.
+
+*   `JobInterface`: Represents a queued task with a `handle()` method.
+*   `QueueInterface`: Provides `push()`, `pop()`, `size()`, and `clear()`.
+*   `ArrayQueue`: A strict, memory-only FIFO implementation providing isolated, non-persistent queues.
+*   `Worker`: Safely processes jobs one at a time via `runOnce()`.
+
+> **Limitations:** v0.14.0 establishes the interface contract. It is strictly in-memory. Persistent queues (Redis/database), durable delivery, retry semantics, and delayed jobs are explicitly out-of-scope for this foundation phase and deferred to future versions. Exceptions thrown during `handle()` will propagate naturally and the job is not automatically requeued.
+
+## Installation
+
 ### ORM Foundation
 
 FlintPHP includes a lightweight Data Mapper ORM that strictly separates persistence from data. It avoids magic properties in favor of IDE-friendly typed properties and rejects global database state by requiring instance-based API usage.
