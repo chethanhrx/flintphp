@@ -1,0 +1,181 @@
+<?php
+
+declare(strict_types=1);
+
+namespace FlintPHP\Framework\Http;
+
+/**
+ * Case-insensitive HTTP header collection.
+ *
+ * Stores headers with lowercased keys internally for case-insensitive
+ * lookups, while preserving the original casing for output.
+ *
+ * This is an immutable value object. All mutation methods return
+ * a new instance, leaving the original unchanged.
+ *
+ * Used by both Request and Response to avoid duplicated header logic.
+ */
+final class HeaderBag
+{
+    /**
+     * Headers stored as lowercase-key => string[].
+     *
+     * @var array<string, string[]>
+     */
+    private readonly array $headers;
+
+    /**
+     * Map of lowercase key => original case key (first seen).
+     *
+     * @var array<string, string>
+     */
+    private readonly array $originalKeys;
+
+    /**
+     * @param array<string, string|string[]> $headers
+     */
+    public function __construct(array $headers = [])
+    {
+        $normalized = [];
+        $originalKeys = [];
+
+        foreach ($headers as $name => $value) {
+            $lower = strtolower($name);
+
+            if (!isset($originalKeys[$lower])) {
+                $originalKeys[$lower] = $name;
+            }
+
+            $values = is_array($value) ? $value : [$value];
+            $normalized[$lower] = array_merge($normalized[$lower] ?? [], $values);
+        }
+
+        $this->headers = $normalized;
+        $this->originalKeys = $originalKeys;
+    }
+
+    /**
+     * Get all headers.
+     *
+     * Returns headers keyed by their original casing.
+     *
+     * @return array<string, string[]>
+     */
+    public function all(): array
+    {
+        $result = [];
+
+        foreach ($this->headers as $lower => $values) {
+            $key = $this->originalKeys[$lower];
+            $result[$key] = $values;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get a single header value by name (case-insensitive).
+     *
+     * Returns the first value if multiple values exist,
+     * or null if the header does not exist.
+     */
+    public function get(string $name): ?string
+    {
+        $lower = strtolower($name);
+
+        if (!isset($this->headers[$lower])) {
+            return null;
+        }
+
+        return $this->headers[$lower][0];
+    }
+
+    /**
+     * Check if a header exists (case-insensitive).
+     */
+    public function has(string $name): bool
+    {
+        return isset($this->headers[strtolower($name)]);
+    }
+
+    /**
+     * Get all values for a header (case-insensitive).
+     *
+     * @return string[]
+     */
+    public function getAll(string $name): array
+    {
+        return $this->headers[strtolower($name)] ?? [];
+    }
+
+    /**
+     * Return a new HeaderBag with the given header set.
+     *
+     * Replaces any existing header with the same name.
+     */
+    public function withHeader(string $name, string|array $value): self
+    {
+        $headers = $this->toConstructorFormat();
+
+        // Remove existing header with same lowercase key
+        foreach ($headers as $existing => $v) {
+            if (strtolower($existing) === strtolower($name)) {
+                unset($headers[$existing]);
+            }
+        }
+
+        $headers[$name] = is_array($value) ? $value : [$value];
+
+        return new self($headers);
+    }
+
+    /**
+     * Return a new HeaderBag without the given header.
+     */
+    public function withoutHeader(string $name): self
+    {
+        $headers = $this->toConstructorFormat();
+
+        foreach ($headers as $existing => $v) {
+            if (strtolower($existing) === strtolower($name)) {
+                unset($headers[$existing]);
+            }
+        }
+
+        return new self($headers);
+    }
+
+    /**
+     * Get the number of headers.
+     */
+    public function count(): int
+    {
+        return count($this->headers);
+    }
+
+    /**
+     * Check if the header bag is empty.
+     */
+    public function isEmpty(): bool
+    {
+        return $this->headers === [];
+    }
+
+    /**
+     * Reconstruct the headers in original-key => values format
+     * suitable for passing to the constructor.
+     *
+     * @return array<string, string[]>
+     */
+    private function toConstructorFormat(): array
+    {
+        $result = [];
+
+        foreach ($this->headers as $lower => $values) {
+            $key = $this->originalKeys[$lower];
+            $result[$key] = $values;
+        }
+
+        return $result;
+    }
+}

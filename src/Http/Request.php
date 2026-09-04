@@ -1,0 +1,247 @@
+<?php
+
+declare(strict_types=1);
+
+namespace FlintPHP\Framework\Http;
+
+/**
+ * Immutable HTTP request representation.
+ *
+ * Wraps all incoming HTTP request data in a clean, typed, read-only
+ * object. All data is treated as untrusted — no automatic type casting,
+ * no header trust, no input interpretation.
+ *
+ * Construct from PHP superglobals via Request::fromGlobals(), or
+ * build manually for testing.
+ *
+ * Design:
+ * - Immutable: request data should not change after construction
+ * - No global access: superglobals are only read in fromGlobals()
+ * - No magic: explicit methods for each data source
+ * - Composition: uses HeaderBag for header management
+ */
+final class Request
+{
+    private readonly HeaderBag $headerBag;
+
+    /**
+     * @param string $method   The HTTP method (e.g., 'GET', 'POST').
+     * @param string $uri      The full request URI including query string.
+     * @param HeaderBag|array<string, string|string[]> $headers Request headers.
+     * @param string $body     The raw request body.
+     * @param array<string, mixed> $server  Server/environment parameters.
+     * @param array<string, string> $cookies Request cookies.
+     * @param array<string, mixed> $query   Parsed query parameters.
+     */
+    public function __construct(
+        private readonly string $method,
+        private readonly string $uri,
+        HeaderBag|array $headers = [],
+        private readonly string $body = '',
+        private readonly array $server = [],
+        private readonly array $cookies = [],
+        private readonly array $query = [],
+    ) {
+        $this->headerBag = $headers instanceof HeaderBag
+            ? $headers
+            : new HeaderBag($headers);
+    }
+
+    /**
+     * Create a Request from PHP superglobals.
+     *
+     * This is the ONLY place in the framework that reads PHP
+     * superglobals directly. All other code works with the
+     * Request object.
+     */
+    public static function fromGlobals(): self
+    {
+        $server = $_SERVER;
+        $method = strtoupper($server['REQUEST_METHOD'] ?? 'GET');
+        $uri = $server['REQUEST_URI'] ?? '/';
+
+        return new self(
+            method: $method,
+            uri: $uri,
+            headers: self::extractHeaders($server),
+            body: self::readBody(),
+            server: $server,
+            cookies: $_COOKIE,
+            query: $_GET,
+        );
+    }
+
+    /**
+     * Get the HTTP method (uppercase string).
+     */
+    public function method(): string
+    {
+        return $this->method;
+    }
+
+    /**
+     * Get the HTTP method as a typed enum, if it is a standard method.
+     *
+     * Returns null for non-standard methods (e.g., PURGE, PROPFIND).
+     */
+    public function httpMethod(): ?Method
+    {
+        return Method::tryFrom($this->method);
+    }
+
+    /**
+     * Check if the request uses the given HTTP method (case-insensitive).
+     */
+    public function isMethod(string $method): bool
+    {
+        return strtoupper($method) === $this->method;
+    }
+
+    /**
+     * Get the full request URI including query string.
+     *
+     * Example: '/users/42?active=true'
+     */
+    public function uri(): string
+    {
+        return $this->uri;
+    }
+
+    /**
+     * Get the request path without the query string.
+     *
+     * Example: '/users/42' from '/users/42?active=true'
+     */
+    public function path(): string
+    {
+        $path = parse_url($this->uri, PHP_URL_PATH);
+
+        return $path !== null && $path !== false ? $path : '/';
+    }
+
+    /**
+     * Get query parameters.
+     *
+     * Without arguments: returns all query parameters as an array.
+     * With a key: returns the value for that key, or the default.
+     *
+     * @param string|null $key     The query parameter key, or null for all.
+     * @param mixed       $default The default value if the key is missing.
+     * @return mixed
+     */
+    public function query(?string $key = null, mixed $default = null): mixed
+    {
+        if ($key === null) {
+            return $this->query;
+        }
+
+        return $this->query[$key] ?? $default;
+    }
+
+    /**
+     * Get the header bag.
+     */
+    public function headers(): HeaderBag
+    {
+        return $this->headerBag;
+    }
+
+    /**
+     * Get a single header value (case-insensitive).
+     *
+     * Shortcut for $request->headers()->get($name).
+     */
+    public function header(string $name): ?string
+    {
+        return $this->headerBag->get($name);
+    }
+
+    /**
+     * Get the raw request body.
+     */
+    public function body(): string
+    {
+        return $this->body;
+    }
+
+    /**
+     * Get server parameters.
+     *
+     * Without arguments: returns all server parameters.
+     * With a key: returns the value for that key, or the default.
+     *
+     * @param string|null $key     The server parameter key, or null for all.
+     * @param mixed       $default The default value if the key is missing.
+     * @return mixed
+     */
+    public function server(?string $key = null, mixed $default = null): mixed
+    {
+        if ($key === null) {
+            return $this->server;
+        }
+
+        return $this->server[$key] ?? $default;
+    }
+
+    /**
+     * Get all cookies.
+     *
+     * @return array<string, string>
+     */
+    public function cookies(): array
+    {
+        return $this->cookies;
+    }
+
+    /**
+     * Get a single cookie value.
+     */
+    public function cookie(string $name): ?string
+    {
+        return $this->cookies[$name] ?? null;
+    }
+
+    /**
+     * Extract HTTP headers from $_SERVER parameters.
+     *
+     * HTTP headers in $_SERVER are prefixed with HTTP_ and use
+     * underscores instead of hyphens. Content-Type and Content-Length
+     * are special cases without the HTTP_ prefix.
+     *
+     * @param array<string, mixed> $server
+     * @return array<string, string>
+     */
+    private static function extractHeaders(array $server): array
+    {
+        $headers = [];
+
+        foreach ($server as $key => $value) {
+            if (!is_string($value)) {
+                continue;
+            }
+
+            if (str_starts_with($key, 'HTTP_')) {
+                $name = str_replace('_', '-', substr($key, 5));
+                $headers[$name] = $value;
+            } elseif ($key === 'CONTENT_TYPE') {
+                $headers['Content-Type'] = $value;
+            } elseif ($key === 'CONTENT_LENGTH') {
+                $headers['Content-Length'] = $value;
+            }
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Read the raw request body from php://input.
+     *
+     * Returns an empty string if the body cannot be read.
+     */
+    private static function readBody(): string
+    {
+        $body = file_get_contents('php://input');
+
+        return $body !== false ? $body : '';
+    }
+}

@@ -17,6 +17,8 @@ composer require flintphp/framework
 
 ## Quick Start
 
+### Application Bootstrap
+
 ```php
 <?php
 
@@ -30,6 +32,48 @@ $app = new Application(__DIR__);
 $app->boot();
 
 echo 'FlintPHP ' . $app->version() . ' is running.' . PHP_EOL;
+```
+
+### HTTP Request & Response
+
+```php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/vendor/autoload.php';
+
+use FlintPHP\Framework\Http\Request;
+use FlintPHP\Framework\Http\Response;
+
+// Create a request from PHP superglobals
+$request = Request::fromGlobals();
+
+// Access request data
+$method = $request->method();       // 'GET'
+$path   = $request->path();         // '/users'
+$page   = $request->query('page');  // '2' or null
+$auth   = $request->header('Authorization');
+
+// Create and send a response
+$response = new Response(
+    body: 'Hello FlintPHP',
+    status: 200,
+);
+$response->send();
+
+// JSON API response
+$response = Response::json([
+    'message' => 'User created',
+    'id' => 42,
+], status: 201);
+$response->send();
+
+// Immutable response building
+$response = (new Response())
+    ->withStatus(200)
+    ->withHeader('Content-Type', 'text/html')
+    ->withBody('<h1>Hello</h1>');
 ```
 
 ## Philosophy
@@ -56,11 +100,18 @@ composer test
 ```
 flintphp/
 ├── src/
-│   └── Foundation/        # Core application bootstrap
-│       ├── Application.php
-│       └── FlintPHP.php
+│   ├── Foundation/        # Core application bootstrap
+│   │   ├── Application.php
+│   │   └── FlintPHP.php
+│   └── Http/              # HTTP foundation
+│       ├── HeaderBag.php
+│       ├── HttpException.php
+│       ├── Method.php
+│       ├── Request.php
+│       └── Response.php
 ├── tests/
-│   └── Foundation/        # Foundation tests
+│   ├── Foundation/        # Foundation tests
+│   └── Http/              # HTTP tests
 ├── composer.json
 ├── phpunit.xml
 └── README.md
