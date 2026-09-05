@@ -294,6 +294,15 @@ Provides a small, dependency-free registry and dispatcher for console commands w
 
 > **Limitations:** v0.16.0 focuses entirely on routing, execution, and exit codes. Options parsing (e.g. `--force=true`), auto-generated help menus, styling/colors, and container integration are deferred to future milestones. Any exception thrown inside a command propagates naturally and must be caught by the front controller.
 
+## 17. Testing Foundation (v0.17.0)
+Provides framework-specific test helpers designed to seamlessly integrate with PHPUnit, focusing exclusively on HTTP lifecycle testing.
+
+*   `TestCase`: Extends `PHPUnit\Framework\TestCase`. Exposes helper methods like `get()`, `post()`, and `postJson()` to programmatically construct HTTP requests and dispatch them to the `Kernel`.
+*   `TestResponse`: A fluent wrapper around the framework's HTTP `Response`, exposing strict assertions powered by PHPUnit (e.g., `assertOk()`, `assertStatus()`, `assertHeader()`, `assertJson()`).
+*   **Decoupled & Secure**: Testing foundation introduces zero global state, avoids magic bindings, and mandates that tests inject their own `Kernel` setup via `createKernel()`.
+
+> **Limitations:** v0.17.0 focuses exclusively on HTTP boundaries. Mocking components, DB refresh traits, queue fakes, or browser testing (e.g., Dusk) are intentionally deferred to future, domain-specific milestones.
+
 ## Installation
 
 ### ORM Foundation
