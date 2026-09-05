@@ -303,6 +303,15 @@ Provides framework-specific test helpers designed to seamlessly integrate with P
 
 > **Limitations:** v0.17.0 focuses exclusively on HTTP boundaries. Mocking components, DB refresh traits, queue fakes, or browser testing (e.g., Dusk) are intentionally deferred to future, domain-specific milestones.
 
+## 18. OpenAPI Foundation (v0.18.0)
+Provides a programmatic, typed, and dependency-free way to construct OpenAPI 3.1.x documents.
+
+*   **Immutable Value Objects:** APIs are constructed using explicit PHP 8 `readonly` objects (`OpenApiDocument`, `PathItem`, `Operation`, `Schema`, etc.).
+*   **Decoupled & Secure:** Operates entirely independently of the routing or container layers. All serialization goes through strict `json_encode` boundaries with `JSON_THROW_ON_ERROR`.
+*   **Reference Safety:** Circular object graphs are prevented by representing `$ref` pointers explicitly with the `Reference` class.
+
+> **Limitations:** v0.18.0 provides the construction and serialization foundation only. Automatic route discovery, YAML generation, and Swagger UI integration are intentionally deferred.
+
 ## Installation
 
 ### ORM Foundation
