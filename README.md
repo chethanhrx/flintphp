@@ -628,9 +628,84 @@ class ProfileController
         return new Response(200, [], 'Hello user: ' . $identity->getIdentifier());
     }
 }
+```Authentication errors (such as missing or invalid Bearer tokens) are caught securely by the middleware, which immediately short-circuits the request and returns a standard `401 Unauthorized` HTTP response containing the `WWW-Authenticate: Bearer` header.
+
+## Console (CLI)
+
+FlintPHP ships a small, explicit CLI. It has no facades, no global registry, no filesystem command discovery, and no shell execution — the same architecture principles as the rest of the framework. The HTTP runtime does not load any Console classes.
+
+### Running the CLI
+
+```bash
+./bin/flint            # no command: usage error, exit 1
+./bin/flint list       # all explicitly registered commands (alphabetical)
+./bin/flint help       # usage + command listing
+./bin/flint help list  # help for one command
+./bin/flint --help     # same as `help`
 ```
 
-Authentication errors (such as missing or invalid Bearer tokens) are caught securely by the middleware, which immediately short-circuits the request and returns a standard `401 Unauthorized` HTTP response containing the `WWW-Authenticate: Bearer` header.
+In applications installed via Composer, the binary is exposed as `vendor/bin/flint`.
+
+### Registering commands
+
+Commands are plain `CommandInterface` implementations, registered explicitly:
+
+```php
+use FlintPHP\Framework\Console\ConsoleApplication;
+use FlintPHP\Framework\Console\ConsoleOutput;
+use FlintPHP\Framework\Console\Input;
+
+$console = new ConsoleApplication();   // built-in `list` and `help` included
+$console->register(new GreetCommand());
+
+$exit = $console->run(new Input($argv), new ConsoleOutput());
+exit($exit);                           // the launcher forwards this code
+```
+
+Pass `new ConsoleApplication(false)` for a bare registry without the built-ins. Duplicate names are rejected loudly. Invalid command names (anything outside `^[a-z0-9]+(?:[:\-][a-z0-9]+)*$`) are rejected at registration.
+
+### Input grammar (current)
+
+`Input` is positional-only. `ParsedInput` adds deterministic option parsing:
+
+```bash
+flint make:controller UserController --resource --env=production
+flint import -- --not-an-option              # "--" ends option parsing
+```
+
+* `--name=value` — valued option; duplicates: last one wins
+* `--name` — boolean flag (`hasOption()` true, `option()` null)
+* `--` — separator; every token after it is positional
+* single-dash tokens (`-v`) remain positional (legacy behavior, pinned by tests)
+* malformed option names throw `InvalidArgumentException`
+
+**Argument and option values are opaque data**: the CLI never interprets, expands, or executes them.
+
+```php
+use FlintPHP\Framework\Console\ParsedInput;
+use FlintPHP\Framework\Console\ParsedInputInterface;
+
+final class GreetCommand implements CommandInterface
+{
+    public function name(): string { return 'greet'; }
+    public function description(): string { return 'Greet someone'; }
+
+    public function execute(InputInterface $input, OutputInterface $output): int
+    {
+        assert($input instanceof ParsedInputInterface);
+
+        $name = $input->getArgument(0) ?? 'world';
+        $loud = $input->hasOption('loud');
+
+        $output->writeLn($loud ? strtoupper("Hello, {$name}!") : "Hello, {$name}!");
+        return 0;
+    }
+}
+```
+
+> **CURRENT**: launcher, `ConsoleApplication`, `Input`/`ParsedInput`, `ConsoleOutput`, explicit registration, `list`, `help`, exit-code passthrough.
+> **PLANNED**: container-aware command resolution (commands receive services via constructors), `cache:clear` once a cache bootstrapper convention exists.
+> **DEFERRED**: code generators (`make:*`), database migrations, queue workers, automatic command discovery, ANSI styling.
 
 ## Philosophy
 

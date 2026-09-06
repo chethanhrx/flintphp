@@ -1,0 +1,31 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * FlintPHP console launcher.
+ *
+ * Deliberately thin: no framework logic, no command implementations, no
+ * argument parsing. It loads the Composer autoloader, hands the raw argv to
+ * ConsoleApplication, and forwards the resulting exit code to the process.
+ */
+
+if (!file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    fwrite(STDERR, "FlintPHP console requires a Composer autoload file.\n");
+    fwrite(STDERR, "Run `composer install` in your project first.\n");
+    exit(1);
+}
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use FlintPHP\Framework\Console\ConsoleApplication;
+use FlintPHP\Framework\Console\ConsoleOutput;
+use FlintPHP\Framework\Console\ParsedInput;
+
+$console = new ConsoleApplication();
+
+exit($console->run(
+    new ParsedInput($argv),
+    new ConsoleOutput()
+));

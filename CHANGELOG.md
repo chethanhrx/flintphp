@@ -5,6 +5,36 @@ All notable changes to FlintPHP are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **CLI launcher** (`bin/flint`): thin executable that loads the Composer
+  autoloader, forwards `argv` to `ConsoleApplication`, and passes the command's
+  exit code to the process. Exposed as `vendor/bin/flint` via the new
+  composer `bin` entry.
+- **Console options**: `ParsedInputInterface` / `ParsedInput` — deterministic
+  `--name=value` options, boolean flags, and `--` separator handling on top of
+  the existing positional-only `InputInterface`. Option names are strictly
+  validated; malformed options throw. Argument and option values are treated
+  as opaque data (never interpreted or executed). Single-dash tokens remain
+  positional, preserving legacy `Input` behavior. Fully backward compatible:
+  `Input` and all existing `ConsoleApplication`/`CommandInterface` APIs are
+  unchanged.
+- **Built-in console commands**: `list` (alphabetical command listing) and
+  `help` (usage + per-command help), generated exclusively from explicitly
+  registered commands — no discovery, no reflection. Both are ordinary
+  `CommandInterface` implementations backed by a read-only
+  `CommandCollectionInterface` view; disable them with
+  `new ConsoleApplication(false)`. `--help` routes to `help` when built-ins
+  are enabled.
+
+### Security
+
+- Console input is treated as untrusted data: hostile argument/option values
+  (shell metacharacters, command substitution, path traversal, control
+  characters) are preserved verbatim and never executed.
+
 ## [1.0.0] - 2026-09-06
 
 First stable release. FlintPHP v1.0.0 is a small, explicit, security-conscious
