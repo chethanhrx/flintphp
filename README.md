@@ -420,6 +420,16 @@ Introduces a minimal, explicit application composition mechanism.
 
 > **Limitations:** v0.28.0 only provides the composition primitive. It does not include native bootstrappers for the framework's optional components (e.g., Database, Cache, Auth). These must currently be implemented in user-land.
 
+## 29. Database Integration (v0.29.0)
+Integrates the Database foundation via the new `DatabaseBootstrapper`.
+
+*   **Explicit Registration**: Must be manually added via `$app->bootstrapWith([new DatabaseBootstrapper()])`.
+*   **Lazy Resolution**: Registers a closure in the container. No database connection, network traffic, or PDO instantiation occurs until the `ConnectionInterface` is actually resolved from the Container.
+*   **Abstraction Binding**: Binds strictly to `ConnectionInterface::class` as a singleton. It avoids exposing implementation details like `PdoConnection` or `ConnectionFactory`.
+*   **Configuration Contract**: Safely extracts the `database` array from the `ConfigRepositoryInterface` exactly when the closure is executed.
+
+> **Limitations:** v0.29.0 does not include connection pooling, active record patterns, database migrations, or automatic setup. It focuses strictly on wiring the existing lazy database primitive cleanly into the Application Container.
+
 ## Installation
 
 ### ORM Foundation
