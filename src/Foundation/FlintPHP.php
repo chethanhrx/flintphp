@@ -20,7 +20,7 @@ final class FlintPHP
     /**
      * The framework version.
      */
-    public const VERSION = '0.31.0';
+    public const VERSION = '0.32.0';
 
     /**
      * Get the framework name.

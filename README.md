@@ -464,6 +464,69 @@ Integrates the Authentication component into the Application and introduces rout
 
 > **Limitations:** v0.31.0 provides authentication composition only. Authorization (policies/permissions) is deferred to the next milestone. Sessions, CSRF protection, and token issuance/revocation flows remain out of scope.
 
+## 32. Authorization Foundation (v0.32.0)
+Adds a minimal, explicit authorization primitive, strictly separated from Authentication:
+
+*   **Authentication** answers *"who is this request associated with?"* and is handled by the Authentication component.
+*   **Authorization** answers *"is this identity allowed to perform this operation?"* and is implemented by the application.
+
+The two share exactly one seam: the authenticated identity attached to the immutable Request attribute `'identity'`. Authorization never mutates authentication state, and neither component depends on the other's middleware or bootstrapper.
+
+*   **AuthorizerInterface**: a single boolean decision contract — `authorize(?IdentityInterface $identity, string $ability = '', mixed $resource = null): bool`. The ability string is an opaque, developer-defined vocabulary (`''` conventionally means overall route access); the framework never interprets it. `$resource` supports fine-grained, controller-side checks.
+*   **No default implementation**: applications MUST explicitly bind their own `AuthorizerInterface` (policy logic is application-specific by design). If none is bound, the first protected request fails loudly with a container `NotFoundException` — fail-closed, never fail-open. There is no deny-all fallback because a silent default would mask misconfiguration.
+*   **RequireAuthorizationMiddleware**: on allow, passes the request through unchanged; on deny, short-circuits with a fixed `403` JSON response (`{"error":"Forbidden"}`) containing no internal details. It runs inside the global pipeline and the Kernel's exception boundary: an authorizer exception propagates to the exception handler (generic 500) and the request never proceeds — exceptions are never converted into denials, and failures never grant access.
+*   **AuthorizationBootstrapper**: registers `RequireAuthorizationMiddleware` as a lazy container singleton. Compose via `$app->bootstrapWith([new AuthorizationBootstrapper()])`.
+
+```php
+use FlintPHP\Framework\Authentication\Middleware\RequireAuthenticationMiddleware;
+use FlintPHP\Framework\Authorization\AuthorizationBootstrapper;
+use FlintPHP\Framework\Authorization\AuthorizerInterface;
+use FlintPHP\Framework\Authorization\Middleware\RequireAuthorizationMiddleware;
+
+// 1. Bind YOUR authorization policy (the framework provides none)
+$app->container()->singleton(AuthorizerInterface::class, function () {
+    return new MyPolicyAuthorizer(); // your implementation
+});
+
+$app->bootstrapWith([new AuthorizationBootstrapper()]);
+
+// 2. Protect routes; authentication first so authorization sees the identity
+$app->router()->get('/admin', AdminController::class . '@index', middleware: [
+    RequireAuthenticationMiddleware::class,
+    RequireAuthorizationMiddleware::class,
+]);
+```
+
+For per-route abilities, register a preconfigured middleware under a custom container id:
+
+```php
+$app->container()->set('auth.ability:posts.manage', function ($c) {
+    return new RequireAuthorizationMiddleware($c->get(AuthorizerInterface::class), 'posts.manage');
+});
+
+$app->router()->post('/posts', $handler, middleware: ['auth.ability:posts.manage']);
+```
+
+Controllers can perform fine-grained checks by injecting `AuthorizerInterface` directly:
+
+```php
+public function update(Request $request, int $id): Response
+{
+    $post = /* ... */;
+    $identity = $request->getAttribute('identity');
+
+    if (!$this->authorizer->authorize($identity, 'update', $post)) {
+        throw new HttpException(403, 'Forbidden');
+    }
+
+    // ...
+}
+```
+
+> **Security guarantees:** enforcement is fail-closed — denial, authorizer exception, unbound implementation, and identity contract violations all end with the request *not* proceeding. Request attributes are server-side state; clients cannot spoof the identity. Authorization never interprets ability strings: never derive them from request input.
+>
+> **Limitations:** v0.32.0 provides the authorization primitive only. Roles/permissions models, database-backed ACLs, policy classes with discovery, gates/facades, and decision events are intentionally deferred. The correctness of authorization logic is entirely the application's responsibility.
+
 ## Installation
 
 ### ORM Foundation
