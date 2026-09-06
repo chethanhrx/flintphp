@@ -22,8 +22,9 @@ use FlintPHP\Framework\Routing\Router;
  *
  * Design philosophy:
  * - Thin coordinator, NOT a god object or service locator.
- * - Components (Container, Router, Kernel) will be composed into
- *   this class in later patches, not baked in from day one.
+ * - Explicit HTTP composition root: inherently owns and registers the core
+ *   HTTP foundation (Container, Router, Kernel, MiddlewareStack, ExceptionHandler).
+ * - Extensible via single-phase bootstrappers, avoiding complex lifecycle magic.
  * - Final class: extending Application is an anti-pattern.
  *   Use composition and the container instead.
  */
@@ -118,11 +119,34 @@ final class Application
     }
 
     /**
+     * Bootstrap the application with the given bootstrappers.
+     *
+     * Iterates through the provided array and executes each BootstrapperInterface
+     * sequentially.
+     *
+     * @param array $bootstrappers An array of BootstrapperInterface instances.
+     *
+     * @throws \InvalidArgumentException If an element is not a BootstrapperInterface.
+     */
+    public function bootstrapWith(array $bootstrappers): void
+    {
+        foreach ($bootstrappers as $bootstrapper) {
+            if (!$bootstrapper instanceof BootstrapperInterface) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Application::bootstrapWith() expects an array of %s instances. Got: %s',
+                    BootstrapperInterface::class,
+                    get_debug_type($bootstrapper)
+                ));
+            }
+
+            $bootstrapper->bootstrap($this);
+        }
+    }
+
+    /**
      * Boot the application.
      *
-     * Marks the application as booted. In future patches, this will
-     * register service providers, compile the container, and prepare
-     * the kernel.
+     * Marks the application as booted.
      *
      * This method is idempotent — calling it multiple times is safe.
      */

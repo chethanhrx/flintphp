@@ -327,4 +327,257 @@ final class ApplicationTest extends TestCase
         $this->assertSame(200, $appA->kernel()->handle($req)->status());
         $this->assertSame(404, $appB->kernel()->handle($req)->status());
     }
+
+    // ── Bootstrappers (v0.28) ──
+
+    #[Test]
+    public function bootstrapWith_does_nothing_with_empty_array(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $throwingBootstrapper = new class() implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function bootstrap(Application $app): void {
+                throw new \RuntimeException('Should not be executed');
+            }
+        };
+
+        $app->bootstrapWith([]);
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    #[Test]
+    public function bootstrapWith_executes_one_bootstrapper(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $executed = false;
+
+        $bootstrapper = new class($executed) implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function __construct(private bool &$executed) {}
+            public function bootstrap(Application $app): void { $this->executed = true; }
+        };
+
+        $app->bootstrapWith([$bootstrapper]);
+
+        $this->assertTrue($executed);
+    }
+
+    #[Test]
+    public function bootstrapWith_executes_multiple_bootstrappers_in_exact_order(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $log = [];
+
+        $createBootstrapper = function (string $name) use (&$log) {
+            return new class($name, $log) implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+                public function __construct(private string $name, private array &$log) {}
+                public function bootstrap(Application $app): void { $this->log[] = $this->name; }
+            };
+        };
+
+        $app->bootstrapWith([
+            $createBootstrapper('first'),
+            $createBootstrapper('second'),
+            $createBootstrapper('third'),
+        ]);
+
+        $this->assertSame(['first', 'second', 'third'], $log);
+    }
+
+    #[Test]
+    public function bootstrapWith_passes_exact_application_identity(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $bootstrapper = new class() implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public ?Application $receivedApp = null;
+            public function bootstrap(Application $app): void { $this->receivedApp = $app; }
+        };
+
+        $app->bootstrapWith([$bootstrapper]);
+
+        $this->assertSame($app, $bootstrapper->receivedApp);
+    }
+
+    #[Test]
+    public function bootstrapper_can_configure_existing_container(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $bootstrapper = new class() implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function bootstrap(Application $app): void {
+                $app->container()->singleton('test_service', new \stdClass());
+            }
+        };
+
+        $app->bootstrapWith([$bootstrapper]);
+
+        $this->assertTrue($app->container()->has('test_service'));
+        $this->assertInstanceOf(\stdClass::class, $app->container()->get('test_service'));
+    }
+
+    #[Test]
+    public function bootstrapper_can_access_existing_configuration(): void
+    {
+        $config = new ConfigRepository(['foo' => 'bar']);
+        $app = new Application('/var/www/myapp', $config);
+        $readConfigValue = null;
+
+        $bootstrapper = new class($readConfigValue) implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function __construct(private &$readConfigValue) {}
+            public function bootstrap(Application $app): void {
+                $this->readConfigValue = $app->config()->get('foo');
+            }
+        };
+
+        $app->bootstrapWith([$bootstrapper]);
+
+        $this->assertSame('bar', $readConfigValue);
+    }
+
+    #[Test]
+    public function bootstrapper_can_configure_existing_router(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $bootstrapper = new class() implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function bootstrap(Application $app): void {
+                $app->router()->get('/bootstrapper-route', function () {
+                    return new \FlintPHP\Framework\Http\Response('Route added');
+                });
+            }
+        };
+
+        $app->bootstrapWith([$bootstrapper]);
+
+        $request = new \FlintPHP\Framework\Http\Request('GET', '/bootstrapper-route');
+        $response = $app->kernel()->handle($request);
+
+        $this->assertSame(200, $response->status());
+        $this->assertSame('Route added', $response->body());
+    }
+
+    #[Test]
+    public function bootstrapper_exceptions_propagate_unchanged(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $exception = new \RuntimeException('Bootstrapper failed');
+
+        $bootstrapper = new class($exception) implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function __construct(private \Throwable $exception) {}
+            public function bootstrap(Application $app): void { throw $this->exception; }
+        };
+
+        try {
+            $app->bootstrapWith([$bootstrapper]);
+            $this->fail('Exception was not thrown');
+        } catch (\Throwable $e) {
+            $this->assertSame($exception, $e);
+        }
+    }
+
+    #[Test]
+    public function later_bootstrappers_do_not_execute_after_failure(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $executed = false;
+
+        $failing = new class() implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function bootstrap(Application $app): void { throw new \RuntimeException('Fail'); }
+        };
+
+        $later = new class($executed) implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function __construct(private bool &$executed) {}
+            public function bootstrap(Application $app): void { $this->executed = true; }
+        };
+
+        try {
+            $app->bootstrapWith([$failing, $later]);
+        } catch (\RuntimeException $e) {
+            // caught
+        }
+
+        $this->assertFalse($executed);
+    }
+
+    #[Test]
+    public function repeated_bootstrapWith_calls_execute_again(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $count = 0;
+
+        $bootstrapper = new class($count) implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function __construct(private int &$count) {}
+            public function bootstrap(Application $app): void { $this->count++; }
+        };
+
+        $app->bootstrapWith([$bootstrapper]);
+        $app->bootstrapWith([$bootstrapper]);
+
+        $this->assertSame(2, $count);
+    }
+
+    #[Test]
+    public function duplicate_bootstrapper_instances_execute_twice(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $count = 0;
+
+        $bootstrapper = new class($count) implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function __construct(private int &$count) {}
+            public function bootstrap(Application $app): void { $this->count++; }
+        };
+
+        $app->bootstrapWith([$bootstrapper, $bootstrapper]);
+
+        $this->assertSame(2, $count);
+    }
+
+    #[Test]
+    public function invalid_array_element_is_rejected(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('expects an array of FlintPHP\Framework\Foundation\BootstrapperInterface instances');
+
+        $app->bootstrapWith([new \stdClass()]);
+    }
+
+    #[Test]
+    public function invalid_value_stops_processing(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $executed = false;
+
+        $later = new class($executed) implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function __construct(private bool &$executed) {}
+            public function bootstrap(Application $app): void { $this->executed = true; }
+        };
+
+        try {
+            $app->bootstrapWith(['invalid_string', $later]);
+        } catch (\InvalidArgumentException $e) {
+            // expected
+        }
+
+        $this->assertFalse($executed);
+    }
+
+    #[Test]
+    public function caller_array_is_not_mutated(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $bootstrapper = new class() implements \FlintPHP\Framework\Foundation\BootstrapperInterface {
+            public function bootstrap(Application $app): void {}
+        };
+
+        $array = [$bootstrapper];
+        $original = $array;
+
+        $app->bootstrapWith($array);
+
+        $this->assertSame($original, $array);
+    }
 }

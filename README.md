@@ -411,6 +411,15 @@ Implements a minimal HTTP error-response foundation on top of the v0.26 exceptio
 
 > **Limitations:** v0.27.0 focuses exclusively on distinguishing controlled HTTP errors from unexpected runtime failures. It does not include a large exception hierarchy (e.g., `HttpNotFoundException`), JSON error formatting, or global PHP error handlers.
 
+## 28. Single-Phase Application Bootstrapper Foundation (v0.28.0)
+Introduces a minimal, explicit application composition mechanism.
+
+*   **BootstrapperInterface**: A strict single-method interface (`bootstrap(Application $app): void`) that allows developers to encapsulate Application configuration and Container bindings cleanly.
+*   **Sequential Execution**: The new `Application::bootstrapWith(array $bootstrappers)` method executes an array of bootstrappers in strict, exact procedural order.
+*   **No Magic**: Completely avoids traditional 2-phase Service Provider architectures, file system discovery, magic string resolution, and deferred lifecycles. Bootstrappers execute exactly when provided, in the order provided, passing the exact same `Application` instance.
+
+> **Limitations:** v0.28.0 only provides the composition primitive. It does not include native bootstrappers for the framework's optional components (e.g., Database, Cache, Auth). These must currently be implemented in user-land.
+
 ## Installation
 
 ### ORM Foundation
