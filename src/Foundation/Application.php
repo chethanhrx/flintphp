@@ -34,9 +34,13 @@ final class Application
     private readonly ConfigRepositoryInterface $config;
     private readonly Container $container;
     private readonly Router $router;
-    private readonly MiddlewareStack $middlewareStack;
+    private ?MiddlewareStack $middlewareStack = null;
     private readonly ExceptionHandlerInterface $exceptionHandler;
-    private readonly Kernel $kernel;
+    private ?Kernel $kernel = null;
+
+    /** @var string[] */
+    private array $globalMiddlewares = [];
+    private bool $middlewareStackFrozen = false;
 
     /**
      * Create a new FlintPHP application instance.
@@ -57,17 +61,21 @@ final class Application
 
         // 2. HTTP Runtime Composition
         $this->router = new Router();
-        $this->middlewareStack = new MiddlewareStack();
         $invoker = new HandlerInvoker($this->container);
         $this->exceptionHandler = new ExceptionHandler();
-        $this->kernel = new Kernel($this->router, $this->middlewareStack, $invoker, $this->exceptionHandler);
 
         // 3. Register HTTP Runtime Components into the Container
         $this->container->singleton(Router::class, $this->router);
-        $this->container->singleton(MiddlewareStack::class, $this->middlewareStack);
         $this->container->singleton(HandlerInvoker::class, $invoker);
         $this->container->singleton(ExceptionHandlerInterface::class, $this->exceptionHandler);
-        $this->container->singleton(Kernel::class, $this->kernel);
+
+        $this->container->singleton(MiddlewareStack::class, function () {
+            return $this->middleware();
+        });
+
+        $this->container->singleton(Kernel::class, function () {
+            return $this->kernel();
+        });
     }
 
     /**
@@ -99,6 +107,27 @@ final class Application
      */
     public function middleware(): MiddlewareStack
     {
+        if ($this->middlewareStack === null) {
+            $this->middlewareStackFrozen = true;
+
+            $resolvedMiddlewares = [];
+            foreach ($this->globalMiddlewares as $middlewareClass) {
+                $middleware = $this->container->get($middlewareClass);
+
+                if (!$middleware instanceof \FlintPHP\Framework\Middleware\MiddlewareInterface) {
+                    throw new \InvalidArgumentException(sprintf(
+                        'Middleware %s must implement %s.',
+                        $middlewareClass,
+                        \FlintPHP\Framework\Middleware\MiddlewareInterface::class
+                    ));
+                }
+
+                $resolvedMiddlewares[] = $middleware;
+            }
+
+            $this->middlewareStack = new MiddlewareStack($resolvedMiddlewares);
+        }
+
         return $this->middlewareStack;
     }
 
@@ -107,7 +136,31 @@ final class Application
      */
     public function kernel(): Kernel
     {
+        if ($this->kernel === null) {
+            $this->kernel = new Kernel(
+                $this->router,
+                $this->middleware(),
+                $this->container->get(HandlerInvoker::class),
+                $this->exceptionHandler
+            );
+        }
+
         return $this->kernel;
+    }
+
+    /**
+     * Register a global middleware class.
+     *
+     * @param string $middlewareClass
+     * @throws \LogicException If the HTTP pipeline has already been finalized.
+     */
+    public function addMiddleware(string $middlewareClass): void
+    {
+        if ($this->middlewareStackFrozen) {
+            throw new \LogicException('Cannot add middleware after the HTTP pipeline has been finalized.');
+        }
+
+        $this->globalMiddlewares[] = $middlewareClass;
     }
 
     /**

@@ -580,4 +580,165 @@ final class ApplicationTest extends TestCase
 
         $this->assertSame($original, $array);
     }
+
+    // ── Middleware Composition ──
+
+    #[Test]
+    public function application_starts_with_empty_middleware_stack(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $app->router()->get('/', function () { return new \FlintPHP\Framework\Http\Response('OK'); });
+
+        $response = $app->kernel()->handle(new \FlintPHP\Framework\Http\Request('GET', '/'));
+        $this->assertSame('OK', $response->body());
+    }
+
+    #[Test]
+    public function addMiddleware_accepts_class_string_and_resolves_through_container(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $executed = false;
+
+        $middleware = new class($executed) implements \FlintPHP\Framework\Middleware\MiddlewareInterface {
+            public function __construct(public bool &$executed) {}
+            public function process(\FlintPHP\Framework\Http\Request $req, callable $next): \FlintPHP\Framework\Http\Response {
+                $this->executed = true;
+                return $next($req);
+            }
+        };
+
+        $app->container()->singleton('MyTestMiddleware', $middleware);
+        $app->addMiddleware('MyTestMiddleware');
+
+        $app->router()->get('/', function () { return new \FlintPHP\Framework\Http\Response('OK'); });
+        $app->kernel()->handle(new \FlintPHP\Framework\Http\Request('GET', '/'));
+
+        $this->assertTrue($executed);
+    }
+
+    #[Test]
+    public function missing_middleware_produces_container_not_found_exception(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $app->addMiddleware('NonExistentMiddleware');
+
+        $this->expectException(\FlintPHP\Framework\Container\NotFoundException::class);
+        $app->middleware();
+    }
+
+    #[Test]
+    public function resolvable_non_middleware_class_produces_invalid_argument_exception(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $app->container()->singleton('NotAMiddleware', new \stdClass());
+        $app->addMiddleware('NotAMiddleware');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('must implement FlintPHP\Framework\Middleware\MiddlewareInterface');
+
+        $app->middleware();
+    }
+
+    #[Test]
+    public function duplicate_middleware_registrations_are_preserved_and_order_is_exact(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $log = [];
+
+        $createMiddleware = function(string $name) use (&$log) {
+            return new class($name, $log) implements \FlintPHP\Framework\Middleware\MiddlewareInterface {
+                public function __construct(private string $name, private array &$log) {}
+                public function process(\FlintPHP\Framework\Http\Request $req, callable $next): \FlintPHP\Framework\Http\Response {
+                    $this->log[] = $this->name;
+                    return $next($req);
+                }
+            };
+        };
+
+        $app->container()->singleton('A', $createMiddleware('A'));
+        $app->container()->singleton('B', $createMiddleware('B'));
+
+        $app->addMiddleware('A');
+        $app->addMiddleware('B');
+        $app->addMiddleware('A'); // duplicate
+
+        $app->router()->get('/', function () { return new \FlintPHP\Framework\Http\Response('OK'); });
+        $app->kernel()->handle(new \FlintPHP\Framework\Http\Request('GET', '/'));
+
+        $this->assertSame(['A', 'B', 'A'], $log);
+    }
+
+    #[Test]
+    public function middleware_pipeline_freezes_and_throws_on_late_registration_via_middleware(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $app->middleware(); // Freezes pipeline
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Cannot add middleware after the HTTP pipeline has been finalized.');
+
+        $app->addMiddleware('SomeMiddleware');
+    }
+
+    #[Test]
+    public function middleware_pipeline_freezes_and_throws_on_late_registration_via_kernel(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $app->kernel(); // Also triggers middleware() internally
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Cannot add middleware after the HTTP pipeline has been finalized.');
+
+        $app->addMiddleware('SomeMiddleware');
+    }
+
+    #[Test]
+    public function middleware_pipeline_freezes_and_throws_on_late_registration_via_container(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $app->container()->get(\FlintPHP\Framework\Middleware\MiddlewareStack::class);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Cannot add middleware after the HTTP pipeline has been finalized.');
+
+        $app->addMiddleware('SomeMiddleware');
+    }
+
+    #[Test]
+    public function container_identity_guarantees_for_middleware_stack(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $direct = $app->middleware();
+        $fromContainer = $app->container()->get(\FlintPHP\Framework\Middleware\MiddlewareStack::class);
+
+        $this->assertSame($direct, $fromContainer);
+    }
+
+    #[Test]
+    public function container_identity_guarantees_for_kernel(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $direct = $app->kernel();
+        $fromContainer = $app->container()->get(\FlintPHP\Framework\Http\Kernel::class);
+
+        $this->assertSame($direct, $fromContainer);
+    }
+
+    #[Test]
+    public function kernel_uses_exactly_the_same_middleware_stack(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $kernel = $app->kernel();
+        $middleware = $app->middleware();
+
+        $reflection = new \ReflectionClass($kernel);
+        $property = $reflection->getProperty('middlewareStack');
+        $property->setAccessible(true);
+        $kernelMiddleware = $property->getValue($kernel);
+
+        $this->assertSame($middleware, $kernelMiddleware);
+    }
 }

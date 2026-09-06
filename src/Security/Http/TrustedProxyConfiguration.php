@@ -31,6 +31,9 @@ final class TrustedProxyConfiguration
         foreach ($this->trustedProxies as $trustedProxy) {
             if (str_contains($trustedProxy, '/')) {
                 [$net, $mask] = explode('/', $trustedProxy, 2);
+                if (!preg_match('/^\d+$/', $mask)) {
+                    continue;
+                }
                 $mask = (int) $mask;
             } else {
                 $net = $trustedProxy;

@@ -94,4 +94,18 @@ final class TrustedProxyConfigurationTest extends TestCase
         $this->assertFalse($config->isTrusted('10.0.0.1'));
         $this->assertFalse($config->isTrusted('127.0.0.1'));
     }
+
+    #[Test]
+    public function it_rejects_malformed_cidrs(): void
+    {
+        $config = new TrustedProxyConfiguration([
+            '192.168.1.0/abc',
+            '10.0.0.0/',
+            '172.16.0.0/+1',
+        ]);
+
+        $this->assertFalse($config->isTrusted('192.168.1.100'));
+        $this->assertFalse($config->isTrusted('10.0.0.5'));
+        $this->assertFalse($config->isTrusted('172.16.0.5'));
+    }
 }
