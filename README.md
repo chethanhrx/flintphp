@@ -350,6 +350,16 @@ Provides a strict, immutable, nested configuration repository powered by an arra
 
 > **Limitations:** v0.22.0 provides the array-backed foundation only. `.env` parsing, environment variable loading, configuration files, YAML/JSON loaders, filesystem scanning, configuration caching, secrets managers, remote configuration, runtime mutation, configuration watchers, hot reload, typed configuration objects, and configuration schema validation are explicitly deferred to future versions.
 
+## 23. Application Bootstrap Foundation (v0.23.0)
+Establishes the `Application` class as the minimal composition root for the framework without introducing global state.
+
+*   **Container Ownership**: The Application creates and owns its explicit DI container, which is securely instance-scoped. There is no external container replacement API.
+*   **Configuration Integration**: Configuration can be explicitly supplied via the constructor, and the repository is securely and deterministically registered into the container. Normal constructor dependency resolution works identically.
+*   **Idempotent Boot**: The application `boot()` method is fully idempotent and does not replace, mutate, or duplicate existing configuration or container registrations.
+*   **Strict Isolation**: There is no global or static Application instance. No `config()` global helper. Multiple Applications can run concurrently with distinct DI containers and configurations without leakage.
+
+> **Limitations:** v0.23.0 strictly defines the bootstrap lifecycle. It explicitly does **not** implement automatic configuration loading from `.env`, environment variables, YAML, JSON, or PHP configuration files. There is no automatic filesystem scanning, remote configuration, configuration caching, or runtime mutation. Automatic wiring of components like the Database, Router, or Logger is intentionally deferred.
+
 ## Installation
 
 ### ORM Foundation

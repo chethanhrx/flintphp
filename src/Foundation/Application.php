@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace FlintPHP\Framework\Foundation;
 
+use FlintPHP\Framework\Config\ConfigRepository;
+use FlintPHP\Framework\Config\Contract\ConfigRepositoryInterface;
+use FlintPHP\Framework\Container\Container;
 
 /**
  * The FlintPHP Application.
@@ -21,15 +24,44 @@ namespace FlintPHP\Framework\Foundation;
 final class Application
 {
     private bool $booted = false;
+    private readonly ConfigRepositoryInterface $config;
+    private readonly Container $container;
 
     /**
      * Create a new FlintPHP application instance.
      *
      * @param string $basePath The root directory of the application.
+     * @param ConfigRepositoryInterface|null $config Explicit configuration repository.
      */
     public function __construct(
         private readonly string $basePath,
+        ?ConfigRepositoryInterface $config = null,
     ) {
+        // Initialize explicit or sensible default instances
+        $this->config = $config ?? new ConfigRepository([]);
+        $this->container = new Container();
+
+        // Deterministic Bootstrap Order:
+        // Registration is performed during construction rather than boot()
+        // to ensure the container is fully formed and the configuration is
+        // immediately available to any components resolved before boot.
+        $this->container->singleton(ConfigRepositoryInterface::class, $this->config);
+    }
+
+    /**
+     * Get the application's dependency injection container.
+     */
+    public function container(): Container
+    {
+        return $this->container;
+    }
+
+    /**
+     * Get the application's configuration repository.
+     */
+    public function config(): ConfigRepositoryInterface
+    {
+        return $this->config;
     }
 
     /**
