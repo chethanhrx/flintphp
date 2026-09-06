@@ -430,6 +430,16 @@ Integrates the Database foundation via the new `DatabaseBootstrapper`.
 
 > **Limitations:** v0.29.0 does not include connection pooling, active record patterns, database migrations, or automatic setup. It focuses strictly on wiring the existing lazy database primitive cleanly into the Application Container.
 
+## 30. ORM Integration (v0.30.0)
+Integrates the ORM component into the Application via the new `OrmBootstrapper`.
+
+*   **Explicit Registration**: Must be manually composed via `$app->bootstrapWith([new OrmBootstrapper()])`.
+*   **Lazy Singleton**: Registers `OrmManager::class` as an Application-scoped lazy singleton. The ORM manager is only instantiated when it is resolved from the Container.
+*   **Database Dependency**: `OrmBootstrapper` requests `ConnectionInterface::class` from the container, ensuring it natively inherits the lazy PDO connection logic established by `DatabaseBootstrapper`.
+*   **No Magic**: The ORM remains strictly Data Mapper based. Models are not automatically discovered, Query Builders remain transient, and there are no global DB/ORM facades.
+
+> **Limitations:** v0.30.0 is an integration release only. It explicitly does not introduce connection pooling, ORM-managed migrations, active record models, relationships, or automatic model registration.
+
 ## Installation
 
 ### ORM Foundation
