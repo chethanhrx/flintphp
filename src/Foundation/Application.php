@@ -7,6 +7,10 @@ namespace FlintPHP\Framework\Foundation;
 use FlintPHP\Framework\Config\ConfigRepository;
 use FlintPHP\Framework\Config\Contract\ConfigRepositoryInterface;
 use FlintPHP\Framework\Container\Container;
+use FlintPHP\Framework\Http\Kernel;
+use FlintPHP\Framework\Middleware\MiddlewareStack;
+use FlintPHP\Framework\Routing\HandlerInvoker;
+use FlintPHP\Framework\Routing\Router;
 
 /**
  * The FlintPHP Application.
@@ -26,6 +30,9 @@ final class Application
     private bool $booted = false;
     private readonly ConfigRepositoryInterface $config;
     private readonly Container $container;
+    private readonly Router $router;
+    private readonly MiddlewareStack $middlewareStack;
+    private readonly Kernel $kernel;
 
     /**
      * Create a new FlintPHP application instance.
@@ -41,11 +48,20 @@ final class Application
         $this->config = $config ?? new ConfigRepository([]);
         $this->container = new Container();
 
-        // Deterministic Bootstrap Order:
-        // Registration is performed during construction rather than boot()
-        // to ensure the container is fully formed and the configuration is
-        // immediately available to any components resolved before boot.
+        // 1. Configuration Registration
         $this->container->singleton(ConfigRepositoryInterface::class, $this->config);
+
+        // 2. HTTP Runtime Composition
+        $this->router = new Router();
+        $this->middlewareStack = new MiddlewareStack();
+        $invoker = new HandlerInvoker($this->container);
+        $this->kernel = new Kernel($this->router, $this->middlewareStack, $invoker);
+
+        // 3. Register HTTP Runtime Components into the Container
+        $this->container->singleton(Router::class, $this->router);
+        $this->container->singleton(MiddlewareStack::class, $this->middlewareStack);
+        $this->container->singleton(HandlerInvoker::class, $invoker);
+        $this->container->singleton(Kernel::class, $this->kernel);
     }
 
     /**
@@ -62,6 +78,30 @@ final class Application
     public function config(): ConfigRepositoryInterface
     {
         return $this->config;
+    }
+
+    /**
+     * Get the HTTP router.
+     */
+    public function router(): Router
+    {
+        return $this->router;
+    }
+
+    /**
+     * Get the HTTP middleware stack.
+     */
+    public function middleware(): MiddlewareStack
+    {
+        return $this->middlewareStack;
+    }
+
+    /**
+     * Get the HTTP kernel.
+     */
+    public function kernel(): Kernel
+    {
+        return $this->kernel;
     }
 
     /**

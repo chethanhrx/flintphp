@@ -27,9 +27,20 @@ declare(strict_types=1);
 require __DIR__ . '/vendor/autoload.php';
 
 use FlintPHP\Framework\Foundation\Application;
+use FlintPHP\Framework\Http\Request;
+use FlintPHP\Framework\Http\Response;
 
 $app = new Application(__DIR__);
-$app->boot();
+
+// Application explicitly owns the HTTP runtime components
+$app->router()->get('/hello', function (Request $request): Response {
+    return new Response('Hello, FlintPHP!');
+});
+
+$request = Request::fromGlobals();
+
+// The Kernel handles the request using the application's composed routing and middleware
+$response = $app->kernel()->handle($request);
 ```
 
 ### Routing
@@ -369,6 +380,16 @@ Provides a primitive for attaching request-scoped metadata to an immutable Reque
 *   **No Magic Integration**: Does not automatically populate user, route, or request ID data.
 
 > **Limitations:** v0.24.0 provides the primitive only. The framework does not automatically extract tracing information, populate the authenticated user into attributes (unless done explicitly by existing middleware), or provide specialized `ContextAttribute` wrappers. Arbitrary user objects are stored by reference (standard PHP behavior) and are not deeply cloned when creating a new request.
+
+## 25. Application HTTP Runtime Foundation (v0.25.0)
+Application is now the explicit HTTP composition root for the framework.
+
+*   **Explicit Composition**: The Application explicitly constructs, owns, and exposes the HTTP runtime components (`Router`, `MiddlewareStack`, and `Kernel`).
+*   **Container Integration**: The Application's owned runtime components are automatically registered into the application's single `Container` instance.
+*   **Complete Isolation**: Different `Application` instances maintain completely independent routes, middleware, kernels, and configurations without state leakage.
+*   **No Global State**: FlintPHP avoids `static $app` facades or global functions entirely, preferring dependency injection and explicit component assembly.
+
+> **Limitations:** v0.25.0 simply composes the foundation. It does not provide lazy loading, route caching, middleware priority systems, attribute-based routing, automatic controller discovery, or implicit file-system configuration loading. The Application's `boot()` method remains intentionally minimal at this stage.
 
 ## Installation
 

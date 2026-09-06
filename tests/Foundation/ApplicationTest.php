@@ -206,4 +206,108 @@ final class ApplicationTest extends TestCase
         $this->assertTrue($appB->isBooted());
         $this->assertTrue($appA->isBooted());
     }
+    // ── HTTP Runtime Composition ──
+
+    #[Test]
+    public function application_owns_and_exposes_the_router(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $router = $app->router();
+
+        $this->assertInstanceOf(\FlintPHP\Framework\Routing\Router::class, $router);
+        $this->assertSame($router, $app->router()); // identity preserved
+    }
+
+    #[Test]
+    public function application_owns_and_exposes_the_middleware_stack(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $middleware = $app->middleware();
+
+        $this->assertInstanceOf(\FlintPHP\Framework\Middleware\MiddlewareStack::class, $middleware);
+        $this->assertSame($middleware, $app->middleware()); // identity preserved
+    }
+
+    #[Test]
+    public function application_owns_and_exposes_the_kernel(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $kernel = $app->kernel();
+
+        $this->assertInstanceOf(\FlintPHP\Framework\Http\Kernel::class, $kernel);
+        $this->assertSame($kernel, $app->kernel()); // identity preserved
+    }
+
+    #[Test]
+    public function runtime_components_are_registered_in_the_container(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $container = $app->container();
+
+        // Exact identity tests
+        $this->assertSame($app->router(), $container->get(\FlintPHP\Framework\Routing\Router::class));
+        $this->assertSame($app->middleware(), $container->get(\FlintPHP\Framework\Middleware\MiddlewareStack::class));
+        $this->assertSame($app->kernel(), $container->get(\FlintPHP\Framework\Http\Kernel::class));
+
+        // HandlerInvoker is also registered
+        $this->assertInstanceOf(\FlintPHP\Framework\Routing\HandlerInvoker::class, $container->get(\FlintPHP\Framework\Routing\HandlerInvoker::class));
+    }
+
+    #[Test]
+    public function kernel_uses_the_exact_application_owned_router_and_middleware_stack(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $kernel = $app->kernel();
+
+        $reflection = new \ReflectionClass($kernel);
+
+        $routerProperty = $reflection->getProperty('router');
+        $routerProperty->setAccessible(true);
+        $kernelRouter = $routerProperty->getValue($kernel);
+
+        $middlewareProperty = $reflection->getProperty('middlewareStack');
+        $middlewareProperty->setAccessible(true);
+        $kernelMiddleware = $middlewareProperty->getValue($kernel);
+
+        $this->assertSame($app->router(), $kernelRouter, 'Kernel must use the exact Application-owned Router instance.');
+        $this->assertSame($app->middleware(), $kernelMiddleware, 'Kernel must use the exact Application-owned MiddlewareStack instance.');
+    }
+
+    #[Test]
+    public function kernel_uses_the_application_router(): void
+    {
+        $app = new Application('/var/www/myapp');
+
+        $app->router()->get('/hello', function (\FlintPHP\Framework\Http\Request $req) {
+            return new \FlintPHP\Framework\Http\Response('Hello World');
+        });
+
+        $request = new \FlintPHP\Framework\Http\Request('GET', '/hello');
+        $response = $app->kernel()->handle($request);
+
+        $this->assertSame(200, $response->status());
+        $this->assertSame('Hello World', $response->body());
+    }
+
+
+
+    #[Test]
+    public function runtime_components_are_completely_isolated(): void
+    {
+        $appA = new Application('/var/www/appA');
+        $appB = new Application('/var/www/appB');
+
+        $this->assertNotSame($appA->router(), $appB->router());
+        $this->assertNotSame($appA->middleware(), $appB->middleware());
+        $this->assertNotSame($appA->kernel(), $appB->kernel());
+
+        // Routes in appA do not leak to appB
+        $appA->router()->get('/only-a', function () { return new \FlintPHP\Framework\Http\Response('A'); });
+
+        $req = new \FlintPHP\Framework\Http\Request('GET', '/only-a');
+
+        $this->assertSame(200, $appA->kernel()->handle($req)->status());
+        $this->assertSame(404, $appB->kernel()->handle($req)->status());
+    }
 }
