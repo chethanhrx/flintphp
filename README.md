@@ -2,7 +2,8 @@
 
 A fast, secure, modern PHP framework for building production-ready APIs and web applications.
 
-> ⚠️ **Development Status**: FlintPHP is under active development and is not yet ready for production use.
+> ✅ **Current release**: v1.0.0 — see the [changelog](CHANGELOG.md) and [security policy](SECURITY.md).
+> FlintPHP favors explicit composition over magic: no facades, no global state, no automatic discovery.
 
 ## Requirements
 
@@ -245,6 +246,34 @@ $cleanData = $result->validated();
 ```
 
 Built-in rules include `required`, `string`, `integer`, `email`, `min:X`, `max:X`, and `in:A,B,C`. You can also easily create custom rules by implementing `RuleInterface`.
+
+Custom rules can be registered by name using the immutable `withRule()` method (deriving a new Validator — built-in names cannot be overridden), and the `ValidationBootstrapper` registers `Validator` in the Application container for constructor injection into controllers:
+
+```php
+use FlintPHP\Framework\Validation\ValidationBootstrapper;
+use FlintPHP\Framework\Validation\Validator;
+
+$app->bootstrapWith([new ValidationBootstrapper()]);
+
+// Replace the container binding with a configured Validator:
+$app->container()->singleton(Validator::class, fn (): Validator =>
+    (new Validator())->withRule('phone', new PhoneRule())
+);
+
+// In a controller (resolved via the container):
+public function store(Request $request, Validator $validator): Response
+{
+    $result = $validator->validate($request->query(), ['phone' => ['required', 'phone']]);
+
+    if (!$result->isValid()) {
+        throw new HttpException(400, 'Validation failed');
+    }
+
+    // $result->validated() contains only validated fields
+}
+```
+
+There is no automatic request validation: controllers validate explicitly, keeping behavior deterministic and testable.
 
 ### Database
 
@@ -614,12 +643,22 @@ FlintPHP is built around these principles:
 - **Modular** — Use only what you need. No monolithic god objects.
 - **Tested** — Every meaningful feature has automated tests.
 
-## Current Limitations
+## v1.0.0 Limitations / Deferred Features
 
 - No wildcard/catch-all routes
 - No optional route parameters
 - Uploaded file parsing is not yet implemented
 - Response streaming is not yet supported
+- Validation: no rule-attribute discovery, no automatic request validation
+- Authorization: no roles/permissions models, no policy discovery, no Gate; policy logic is application-owned by design
+- Queue: in-memory only (no persistence, retries, or distributed workers)
+- Cache: local array/file drivers only (no distributed cache)
+- Observability: in-memory structured logging; no exporters/OTel integration
+- Metrics: no labels, no exporters
+- Configuration: explicit arrays only; no `.env`/file loading (planned explicit loader, deferred)
+- OpenAPI: programmatic document construction only; no generator/Swagger UI
+- WebSockets: protocol layer only; no server runtime
+- Sessions/OAuth/JWT ecosystems, schedulers, templating, asset pipelines: deferred by design
 
 ## Development
 
@@ -628,6 +667,16 @@ FlintPHP is built around these principles:
 ```bash
 composer test
 ```
+
+### Performance Benchmark
+
+```bash
+php benchmarks/HttpPipelineBench.php
+```
+
+## Contributing & Security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and architecture principles. To report a security vulnerability, follow [SECURITY.md](SECURITY.md) — please do not report security issues through public GitHub issues.
 
 ## License
 

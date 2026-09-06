@@ -342,6 +342,57 @@ final class AuthorizationBootstrapperTest extends TestCase
     }
 
     #[Test]
+    public function authenticated_but_denied_produces_403_without_www_authenticate(): void
+    {
+        // Canonical v1 boundary case: authentication SUCCEEDS, authorization
+        // then DENIES. The response must be a 403 authorization denial — not
+        // a 401 — and must not carry WWW-Authenticate (that would advertise
+        // an authentication problem).
+        $app = new Application('/tmp');
+
+        $app->container()->singleton(UserProviderInterface::class, function () {
+            return new class implements UserProviderInterface {
+                public function retrieveByToken(string $token): ?IdentityInterface
+                {
+                    return new class implements IdentityInterface {
+                        public function getIdentifier(): string|int
+                        {
+                            return 'user-42';
+                        }
+                    };
+                }
+            };
+        });
+
+        $app->container()->singleton(AuthorizerInterface::class, function () {
+            return new class implements AuthorizerInterface {
+                public function authorize(?IdentityInterface $identity, string $ability = '', mixed $resource = null): bool
+                {
+                    return false; // authenticated, but never allowed
+                }
+            };
+        });
+
+        $app->bootstrapWith([
+            new AuthenticationBootstrapper(),
+            new AuthorizationBootstrapper(),
+        ]);
+
+        $app->router()->get('/admin', fn (): Response => new Response('never'), middleware: [
+            RequireAuthenticationMiddleware::class,
+            RequireAuthorizationMiddleware::class,
+        ]);
+
+        $response = $app->kernel()->handle(
+            new Request('GET', '/admin', ['Authorization' => 'Bearer valid-token'])
+        );
+
+        $this->assertSame(403, $response->status());
+        $this->assertSame('{"error":"Forbidden"}', $response->body());
+        $this->assertNull($response->header('WWW-Authenticate'));
+    }
+
+    #[Test]
     public function authorizer_failure_never_grants_access(): void
     {
         $app = new Application('/tmp');

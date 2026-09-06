@@ -24,7 +24,7 @@ use Psr\Container\ContainerInterface;
  *   container NotFoundException inside the Kernel's exception boundary —
  *   fail-closed, never fail-open.
  * - To change the required ability, register the middleware under a custom
- *   container id with a preconfigured ability, or subclass it. The default
+ *   container id with a preconfigured ability. The default
  *   binding forwards the empty ability ('' = overall route access).
  * - Re-running this bootstrapper overwrites the middleware binding and drops
  *   any cached instance — redundant but safe, consistent with the other

@@ -178,8 +178,14 @@ final class HeaderBag
         }
 
         foreach ($values as $value) {
-            if (strpbrk($value, "\r\n") !== false) {
-                throw new \InvalidArgumentException('Header value cannot contain CR or LF characters.');
+            // RFC 7230 field-value character set: HTAB, SP, VCHAR, and
+            // obs-text. CR, LF, NUL, and other disallowed C0 control
+            // characters are rejected to prevent header injection and
+            // response splitting.
+            if (preg_match('/[^\x09\x20-\x7E\x80-\xFF]/', $value) === 1) {
+                throw new \InvalidArgumentException(
+                    'Header value contains disallowed control characters (CR, LF, NUL, etc.).'
+                );
             }
         }
     }

@@ -16,6 +16,18 @@ use RuntimeException;
 final class Validator
 {
     /**
+     * Built-in rule names. These are protected from override via withRule()
+     * so that security- and correctness-relevant built-in semantics cannot be
+     * silently weakened by a name collision.
+     */
+    private const BUILT_IN_RULES = ['required', 'string', 'integer', 'email', 'min', 'max', 'in'];
+
+    /**
+     * @var array<string, RuleInterface|class-string>
+     */
+    private array $customRules = [];
+
+    /**
      * Validate the given data against the provided rules.
      *
      * @param array<string, mixed> $data
@@ -79,6 +91,80 @@ final class Validator
     }
 
     /**
+     * Derive a new Validator with a custom rule registered under the given
+     * name. The Validator is immutable with respect to configuration: the
+     * original instance is never modified, and existing custom rules are
+     * carried over to the derived instance.
+     *
+     * Built-in rule names cannot be overridden; attempting to do so throws.
+     * Registering an already-known custom name also throws — rebind by
+     * deriving from the base Validator instead.
+     *
+     * @param string                       $name Rule name usable in string
+     *                                          rule arrays (must match
+     *                                          [a-zA-Z_][a-zA-Z0-9_]*, the
+     *                                          same grammar as rule parsing).
+     * @param RuleInterface|class-string   $rule A rule instance, or the name of
+     *                                          an instantiable RuleInterface
+     *                                          implementation class resolved
+     *                                          at validation time.
+     */
+    public function withRule(string $name, RuleInterface|string $rule): self
+    {
+        if (preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $name) !== 1) {
+            throw new \InvalidArgumentException(sprintf(
+                'Validation rule name "%s" is invalid. Names must match [a-zA-Z_][a-zA-Z0-9_]*.',
+                $name
+            ));
+        }
+
+        if (in_array($name, self::BUILT_IN_RULES, true)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Validation rule "%s" is built in and cannot be overridden.',
+                $name
+            ));
+        }
+
+        if (isset($this->customRules[$name])) {
+            throw new \InvalidArgumentException(sprintf(
+                'Validation rule "%s" is already registered on this Validator.',
+                $name
+            ));
+        }
+
+        if ($rule instanceof RuleInterface) {
+            $derived = new self();
+            $derived->customRules = $this->customRules;
+            $derived->customRules[$name] = $rule;
+
+            return $derived;
+        }
+
+        // class-string: validate eagerly so developer errors fail fast at
+        // composition time rather than at first validation.
+        if (!class_exists($rule)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Validation rule class "%s" does not exist.',
+                $rule
+            ));
+        }
+
+        if (!is_subclass_of($rule, RuleInterface::class)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Validation rule class "%s" must implement %s.',
+                $rule,
+                RuleInterface::class
+            ));
+        }
+
+        $derived = new self();
+        $derived->customRules = $this->customRules;
+        $derived->customRules[$name] = $rule;
+
+        return $derived;
+    }
+
+    /**
      * Parse a string rule or return the RuleInterface directly.
      */
     private function resolveRule(string|RuleInterface $rule): RuleInterface
@@ -98,6 +184,12 @@ final class Validator
             if (!is_numeric($parameters[0])) {
                 throw new RuntimeException(sprintf('Validation rule "%s" requires a numeric parameter.', $name));
             }
+        }
+
+        if (isset($this->customRules[$name])) {
+            $custom = $this->customRules[$name];
+
+            return $custom instanceof RuleInterface ? $custom : new $custom();
         }
 
         return match ($name) {
