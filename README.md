@@ -402,6 +402,15 @@ Introduces a minimal framework-level HTTP exception handling boundary.
 
 > **Limitations:** v0.26.0 is intentionally minimal. It defers debug rendering, automatic logging, metrics recording, and event dispatching. It focuses strictly on bounding the HTTP request lifecycle securely. It does NOT register global PHP error/exception handlers.
 
+## 27. HTTP Error Response Foundation (v0.27.0)
+Implements a minimal HTTP error-response foundation on top of the v0.26 exception boundary.
+
+*   **HttpException**: A minimal framework exception (`FlintPHP\Framework\Http\Exception\HttpException`) representing a controlled HTTP error. It accepts an HTTP status code (100–599) and an optional public message.
+*   **Controlled Responses**: Throwing an `HttpException` generates an HTTP response with the specified status and public message, safely exposing only intentional application-level information to the client.
+*   **Generic Fallback**: Throwing any other `Throwable` continues to generate a generic 500 Internal Server Error response, strictly hiding sensitive exception details (messages, stack traces, file paths, etc.).
+
+> **Limitations:** v0.27.0 focuses exclusively on distinguishing controlled HTTP errors from unexpected runtime failures. It does not include a large exception hierarchy (e.g., `HttpNotFoundException`), JSON error formatting, or global PHP error handlers.
+
 ## Installation
 
 ### ORM Foundation

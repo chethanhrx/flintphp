@@ -133,6 +133,22 @@ final class KernelTest extends TestCase
     }
 
     #[Test]
+    public function http_exceptions_thrown_by_handler_produce_controlled_responses(): void
+    {
+        $this->router->get('/boom', function () {
+            throw new \FlintPHP\Framework\Http\Exception\HttpException(401, 'Unauthorized access');
+        });
+
+        $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker, $this->exceptionHandler);
+        $request = new Request('GET', '/boom');
+
+        $response = $kernel->handle($request);
+
+        $this->assertSame(401, $response->status());
+        $this->assertSame("Unauthorized access\n", $response->body());
+    }
+
+    #[Test]
     public function middleware_executes_before_and_after_routing(): void
     {
         $log = [];
@@ -238,6 +254,24 @@ final class KernelTest extends TestCase
 
         $this->assertSame(500, $response->status());
         $this->assertSame("Internal Server Error\n", $response->body());
+    }
+
+    #[Test]
+    public function http_exceptions_thrown_by_middleware_produce_controlled_responses(): void
+    {
+        $middleware = new class() implements MiddlewareInterface {
+            public function process(Request $request, callable $next): Response {
+                throw new \FlintPHP\Framework\Http\Exception\HttpException(403, 'Forbidden action');
+            }
+        };
+
+        $kernel = new Kernel($this->router, new MiddlewareStack([$middleware]), $this->invoker, $this->exceptionHandler);
+        $request = new Request('GET', '/test');
+
+        $response = $kernel->handle($request);
+
+        $this->assertSame(403, $response->status());
+        $this->assertSame("Forbidden action\n", $response->body());
     }
 
     #[Test]

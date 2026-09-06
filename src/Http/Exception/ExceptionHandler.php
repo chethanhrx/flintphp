@@ -19,6 +19,18 @@ final class ExceptionHandler implements ExceptionHandlerInterface
 {
     public function handle(Throwable $exception, Request $request): Response
     {
+        if ($exception instanceof HttpException) {
+            $message = $exception->getMessage();
+            if ($message === '') {
+                $message = sprintf('HTTP %d', $exception->status());
+            }
+
+            return new Response(
+                body: $message . "\n",
+                status: $exception->status(),
+            );
+        }
+
         return new Response(
             body: "Internal Server Error\n",
             status: 500,
