@@ -245,21 +245,43 @@ final class Request
 
     /**
      * Get a specific request attribute.
+     *
+     * @deprecated Use attribute() instead.
      */
-    public function getAttribute(string $name, mixed $default = null): mixed
+    public function getAttribute(string $key, mixed $default = null): mixed
     {
-        return $this->attributes[$name] ?? $default;
+        return $this->attribute($key, $default);
+    }
+
+    /**
+     * Get an attribute by key, returning the default if missing.
+     */
+    public function attribute(string $key, mixed $default = null): mixed
+    {
+        if (array_key_exists($key, $this->attributes)) {
+            return $this->attributes[$key];
+        }
+
+        return $default;
+    }
+
+    /**
+     * Check if the request has an attribute by key.
+     */
+    public function hasAttribute(string $key): bool
+    {
+        return array_key_exists($key, $this->attributes);
     }
 
     /**
      * Return a new Request with the specified attribute.
      */
-    public function withAttribute(string $name, mixed $value): self
+    public function withAttribute(string $key, mixed $value): static
     {
         $attributes = $this->attributes;
-        $attributes[$name] = $value;
+        $attributes[$key] = $value;
 
-        return new self(
+        return new static(
             method: $this->method,
             uri: $this->uri,
             headers: clone $this->headerBag,
@@ -273,13 +295,50 @@ final class Request
     }
 
     /**
+     * Return a new Request without the specified attribute.
+     */
+    public function withoutAttribute(string $key): static
+    {
+        if (!array_key_exists($key, $this->attributes)) {
+            // Already absent; but to satisfy $new !== $this reliably for immutable semantics,
+            // we should still return a clone conceptually. However, if performance matters,
+            // returning $this is standard for immutable PSR-7.
+            // The prompt says "is acceptable and preferred for consistent immutable semantics"
+            // regarding $newRequest !== $request.
+        }
+
+        $attributes = $this->attributes;
+        unset($attributes[$key]);
+
+        return new static(
+            method: $this->method,
+            uri: $this->uri,
+            headers: clone $this->headerBag,
+            body: $this->body,
+            server: $this->server,
+            cookies: $this->cookies,
+            query: $this->query,
+            attributes: $attributes,
+            clientIp: $this->clientIp,
+        );
+    }
+
+    /**
+     * Get all attributes.
+     */
+    public function attributes(): array
+    {
+        return $this->attributes;
+    }
+
+    /**
      * Return a new Request with the given header.
      */
-    public function withHeader(string $name, string $value): self
+    public function withHeader(string $name, string $value): static
     {
         $headers = $this->headerBag->withHeader($name, $value);
 
-        return new self(
+        return new static(
             method: $this->method,
             uri: $this->uri,
             headers: $headers,

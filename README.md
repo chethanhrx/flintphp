@@ -360,6 +360,16 @@ Establishes the `Application` class as the minimal composition root for the fram
 
 > **Limitations:** v0.23.0 strictly defines the bootstrap lifecycle. It explicitly does **not** implement automatic configuration loading from `.env`, environment variables, YAML, JSON, or PHP configuration files. There is no automatic filesystem scanning, remote configuration, configuration caching, or runtime mutation. Automatic wiring of components like the Database, Router, or Logger is intentionally deferred.
 
+## 24. Request Attributes Foundation (v0.24.0)
+Provides a primitive for attaching request-scoped metadata to an immutable Request.
+
+*   **Request-Scoped**: Attributes belong to a specific Request instance. There is no global context, no static state, and no `Context` singleton.
+*   **Immutable API**: The Request remains immutable. `withAttribute(string $key, mixed $value)` and `withoutAttribute(string $key)` return a new Request instance, preserving all existing properties.
+*   **Arbitrary Keys and Values**: Supports arbitrary string keys (case-sensitive) and opaque mixed values. Explicit `null` values are fully supported and distinguishable from missing keys.
+*   **No Magic Integration**: Does not automatically populate user, route, or request ID data.
+
+> **Limitations:** v0.24.0 provides the primitive only. The framework does not automatically extract tracing information, populate the authenticated user into attributes (unless done explicitly by existing middleware), or provide specialized `ContextAttribute` wrappers. Arbitrary user objects are stored by reference (standard PHP behavior) and are not deeply cloned when creating a new request.
+
 ## Installation
 
 ### ORM Foundation

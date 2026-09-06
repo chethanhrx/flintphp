@@ -491,4 +491,298 @@ final class RequestTest extends TestCase
 
         $this->assertSame([], $request->server());
     }
+    // ---------------------------------------------------------------
+    // Attributes
+    // ---------------------------------------------------------------
+
+    #[Test]
+    public function it_has_no_attributes_by_default(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+
+        $this->assertSame([], $request->attributes());
+        $this->assertFalse($request->hasAttribute('missing'));
+    }
+
+    #[Test]
+    public function it_can_set_and_get_a_string_attribute(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $withAttr = $request->withAttribute('test', 'value');
+
+        $this->assertTrue($withAttr->hasAttribute('test'));
+        $this->assertSame('value', $withAttr->attribute('test'));
+    }
+
+    #[Test]
+    public function attribute_returns_null_for_missing_key(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+
+        $this->assertNull($request->attribute('missing'));
+    }
+
+    #[Test]
+    public function attribute_returns_default_for_missing_key(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+
+        $this->assertSame('fallback', $request->attribute('missing', 'fallback'));
+    }
+
+    #[Test]
+    public function existing_null_attribute_overrides_default(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $request = $request->withAttribute('foo', null);
+
+        $this->assertTrue($request->hasAttribute('foo'));
+        $this->assertNull($request->attribute('foo', 'fallback'));
+    }
+
+    #[Test]
+    public function it_preserves_falsey_values(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+
+        $r1 = $request->withAttribute('bool', false);
+        $this->assertTrue($r1->hasAttribute('bool'));
+        $this->assertFalse($r1->attribute('bool', true));
+
+        $r2 = $request->withAttribute('int', 0);
+        $this->assertTrue($r2->hasAttribute('int'));
+        $this->assertSame(0, $r2->attribute('int', 99));
+
+        $r3 = $request->withAttribute('float', 0.0);
+        $this->assertTrue($r3->hasAttribute('float'));
+        $this->assertSame(0.0, $r3->attribute('float', 99.9));
+
+        $r4 = $request->withAttribute('string', '');
+        $this->assertTrue($r4->hasAttribute('string'));
+        $this->assertSame('', $r4->attribute('string', 'fallback'));
+
+        $r5 = $request->withAttribute('array', []);
+        $this->assertTrue($r5->hasAttribute('array'));
+        $this->assertSame([], $r5->attribute('array', ['fallback']));
+    }
+
+    #[Test]
+    public function it_preserves_object_identity(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $object = new \stdClass();
+        $object->foo = 'bar';
+
+        $withObject = $request->withAttribute('obj', $object);
+
+        $this->assertSame($object, $withObject->attribute('obj'));
+    }
+
+    #[Test]
+    public function it_stores_closures_without_execution(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $executed = false;
+        $closure = function () use (&$executed) {
+            $executed = true;
+            return 'result';
+        };
+
+        $withClosure = $request->withAttribute('func', $closure);
+
+        $this->assertSame($closure, $withClosure->attribute('func'));
+        $this->assertFalse($executed);
+    }
+
+    #[Test]
+    public function it_allows_arbitrary_keys(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+
+        $request = $request->withAttribute('', 'empty_string');
+        $this->assertSame('empty_string', $request->attribute(''));
+
+        $request = $request->withAttribute('user', 'user_val');
+        $this->assertSame('user_val', $request->attribute('user'));
+
+        $request = $request->withAttribute('trace.id', 'trace_val');
+        $this->assertSame('trace_val', $request->attribute('trace.id'));
+
+        $request = $request->withAttribute('  ', 'whitespace');
+        $this->assertSame('whitespace', $request->attribute('  '));
+
+        $request = $request->withAttribute('ñ', 'unicode');
+        $this->assertSame('unicode', $request->attribute('ñ'));
+    }
+
+    #[Test]
+    public function keys_are_case_sensitive(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $request = $request->withAttribute('user', 'lower');
+        $request = $request->withAttribute('User', 'camel');
+        $request = $request->withAttribute('USER', 'upper');
+
+        $this->assertSame('lower', $request->attribute('user'));
+        $this->assertSame('camel', $request->attribute('User'));
+        $this->assertSame('upper', $request->attribute('USER'));
+    }
+
+    #[Test]
+    public function with_attribute_is_immutable(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $request2 = $request->withAttribute('foo', 'bar');
+
+        $this->assertFalse($request->hasAttribute('foo'));
+        $this->assertTrue($request2->hasAttribute('foo'));
+        $this->assertNotSame($request, $request2);
+    }
+
+    #[Test]
+    public function with_attribute_replaces_existing_key(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $r1 = $request->withAttribute('foo', 'one');
+        $r2 = $r1->withAttribute('foo', 'two');
+
+        $this->assertSame('one', $r1->attribute('foo'));
+        $this->assertSame('two', $r2->attribute('foo'));
+    }
+
+    #[Test]
+    public function multiple_attributes_survive_updates(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $r1 = $request->withAttribute('a', 1)->withAttribute('b', 2);
+
+        $this->assertSame(1, $r1->attribute('a'));
+        $this->assertSame(2, $r1->attribute('b'));
+
+        $r2 = $r1->withAttribute('a', 99);
+        $this->assertSame(99, $r2->attribute('a'));
+        $this->assertSame(2, $r2->attribute('b'));
+        $this->assertSame(1, $r1->attribute('a'));
+    }
+
+    #[Test]
+    public function without_attribute_removes_key_immutably(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $r1 = $request->withAttribute('a', 1)->withAttribute('b', 2);
+
+        $r2 = $r1->withoutAttribute('a');
+
+        $this->assertFalse($r2->hasAttribute('a'));
+        $this->assertTrue($r2->hasAttribute('b'));
+
+        $this->assertTrue($r1->hasAttribute('a'));
+        $this->assertNotSame($r1, $r2);
+    }
+
+    #[Test]
+    public function without_attribute_on_missing_key_returns_clone_or_same(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $r2 = $request->withoutAttribute('missing');
+
+        $this->assertFalse($r2->hasAttribute('missing'));
+    }
+
+    #[Test]
+    public function attributes_returns_snapshot(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $r1 = $request->withAttribute('foo', 'bar');
+
+        $attributes = $r1->attributes();
+        $attributes['foo'] = 'mutated';
+        $attributes['new'] = 'val';
+
+        $this->assertSame('bar', $r1->attribute('foo'));
+        $this->assertFalse($r1->hasAttribute('new'));
+    }
+
+    #[Test]
+    public function attributes_returns_all_keys(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $r1 = $request->withAttribute('a', 1)->withAttribute('b', 2);
+
+        $this->assertSame(['a' => 1, 'b' => 2], $r1->attributes());
+    }
+
+    #[Test]
+    public function with_attribute_preserves_all_request_properties(): void
+    {
+        $request = new Request(
+            method: 'POST',
+            uri: '/users?page=2',
+            headers: ['Content-Type' => 'application/json'],
+            body: '{"name":"test"}',
+            server: ['SERVER_NAME' => 'localhost'],
+            cookies: ['session' => 'abc123'],
+            query: ['page' => '2'],
+            attributes: [],
+            clientIp: '127.0.0.1'
+        );
+
+        $r2 = $request->withAttribute('foo', 'bar');
+
+        $this->assertSame('POST', $r2->method());
+        $this->assertSame('/users?page=2', $r2->uri());
+        $this->assertSame('application/json', $r2->header('Content-Type'));
+        $this->assertSame('{"name":"test"}', $r2->body());
+        $this->assertSame('localhost', $r2->server('SERVER_NAME'));
+        $this->assertSame('abc123', $r2->cookie('session'));
+        $this->assertSame('2', $r2->query('page'));
+        $this->assertSame('127.0.0.1', $r2->clientIp());
+    }
+
+    #[Test]
+    public function from_globals_initializes_empty_attributes(): void
+    {
+        $origServer = $_SERVER;
+        $origGet = $_GET;
+        $origCookie = $_COOKIE;
+
+        try {
+            $_SERVER = ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/'];
+            $_GET = [];
+            $_COOKIE = [];
+
+            $request = Request::fromGlobals();
+            $this->assertSame([], $request->attributes());
+        } finally {
+            $_SERVER = $origServer;
+            $_GET = $origGet;
+            $_COOKIE = $origCookie;
+        }
+    }
+
+    #[Test]
+    public function multiple_requests_are_isolated(): void
+    {
+        $r1 = new Request(method: 'GET', uri: '/');
+        $r2 = new Request(method: 'GET', uri: '/');
+
+        $r1 = $r1->withAttribute('foo', 'r1');
+        $r2 = $r2->withAttribute('foo', 'r2');
+
+        $this->assertSame('r1', $r1->attribute('foo'));
+        $this->assertSame('r2', $r2->attribute('foo'));
+    }
+
+    #[Test]
+    public function get_attribute_is_deprecated_alias_for_attribute(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+
+        // This simulates legacy getAttribute calls
+        $r1 = $request->withAttribute('user', 'legacy');
+
+        $this->assertSame('legacy', $r1->getAttribute('user'));
+        $this->assertNull($r1->getAttribute('missing'));
+        $this->assertSame('fallback', $r1->getAttribute('missing', 'fallback'));
+    }
 }
