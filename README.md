@@ -312,6 +312,22 @@ Provides a programmatic, typed, and dependency-free way to construct OpenAPI 3.1
 
 > **Limitations:** v0.18.0 provides the construction and serialization foundation only. Automatic route discovery, YAML generation, and Swagger UI integration are intentionally deferred.
 
+## 19. WebSocket Foundation (v0.19.0)
+*(WebSocket protocol layer: frame parsing, message assembly, handshake validation.)*
+
+## 20. Observability Foundation (v0.20.0)
+Provides a structured, in-memory logging foundation with no hidden I/O.
+
+*   `LogLevel`: A string-backed enum with eight PSR-style severity levels (`debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`).
+*   `LoggerInterface`: A minimal logging contract with a typed `log()` method and eight convenience methods.
+*   `Logger`: An in-memory structured logger that stores `LogRecord` objects. Performs no file, network, or database I/O. Channel names are validated against a strict grammar.
+*   `NullLogger`: A no-op implementation that silently discards all log messages.
+*   `LogRecord`: An immutable (`final readonly`) value object capturing level, message, context, channel, and timestamp.
+
+> **Caller responsibility:** The logger does not inspect, sanitize, or redact context values. Callers are responsible for ensuring that sensitive data (passwords, tokens, secrets) is not passed into log context. A framework logger cannot reliably detect secrets in arbitrary key/value data.
+
+> **Limitations:** v0.20.0 establishes the structured logging foundation only. File logging, database logging, log rotation, exporters, metrics, tracing, and OpenTelemetry integration are intentionally deferred to future versions. The current `Logger` is strictly in-memory and intended as a building block for future I/O adapters.
+
 ## Installation
 
 ### ORM Foundation
