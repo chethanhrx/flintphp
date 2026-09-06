@@ -141,7 +141,8 @@ final class Application
                 $this->router,
                 $this->middleware(),
                 $this->container->get(HandlerInvoker::class),
-                $this->exceptionHandler
+                $this->exceptionHandler,
+                $this->container
             );
         }
 

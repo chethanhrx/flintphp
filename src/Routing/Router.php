@@ -48,17 +48,24 @@ final class Router
     /**
      * Register a route.
      *
-     * @param string  $method  HTTP method (e.g., 'GET', 'POST'). Case-insensitive.
-     * @param string  $path    Route pattern (e.g., '/users/{id}').
-     * @param mixed   $handler The handler (Closure, callable, etc.).
-     * @param ?string $name    Optional route name.
+     * @param string        $method     HTTP method (e.g., 'GET', 'POST'). Case-insensitive.
+     * @param string        $path       Route pattern (e.g., '/users/{id}').
+     * @param mixed         $handler    The handler (Closure, callable, etc.).
+     * @param ?string       $name       Optional route name.
+     * @param array<string> $middleware Route-scoped middleware class names, resolved
+     *                                  lazily through the Container at dispatch time.
      *
-     * @throws RoutingException If the pattern is malformed.
+     * @throws RoutingException If the pattern is malformed or middleware is invalid.
      */
-    public function add(string $method, string $path, mixed $handler, ?string $name = null): Route
-    {
+    public function add(
+        string $method,
+        string $path,
+        mixed $handler,
+        ?string $name = null,
+        array $middleware = [],
+    ): Route {
         $method = strtoupper($method);
-        $route = new Route($method, $path, $handler, $name);
+        $route = new Route($method, $path, $handler, $name, $middleware);
 
         if ($route->isStatic()) {
             if (!isset($this->staticRoutes[$path])) {
@@ -78,57 +85,57 @@ final class Router
     /**
      * Register a GET route.
      */
-    public function get(string $path, mixed $handler, ?string $name = null): Route
+    public function get(string $path, mixed $handler, ?string $name = null, array $middleware = []): Route
     {
-        return $this->add(Method::GET->value, $path, $handler, $name);
+        return $this->add(Method::GET->value, $path, $handler, $name, $middleware);
     }
 
     /**
      * Register a POST route.
      */
-    public function post(string $path, mixed $handler, ?string $name = null): Route
+    public function post(string $path, mixed $handler, ?string $name = null, array $middleware = []): Route
     {
-        return $this->add(Method::POST->value, $path, $handler, $name);
+        return $this->add(Method::POST->value, $path, $handler, $name, $middleware);
     }
 
     /**
      * Register a PUT route.
      */
-    public function put(string $path, mixed $handler, ?string $name = null): Route
+    public function put(string $path, mixed $handler, ?string $name = null, array $middleware = []): Route
     {
-        return $this->add(Method::PUT->value, $path, $handler, $name);
+        return $this->add(Method::PUT->value, $path, $handler, $name, $middleware);
     }
 
     /**
      * Register a PATCH route.
      */
-    public function patch(string $path, mixed $handler, ?string $name = null): Route
+    public function patch(string $path, mixed $handler, ?string $name = null, array $middleware = []): Route
     {
-        return $this->add(Method::PATCH->value, $path, $handler, $name);
+        return $this->add(Method::PATCH->value, $path, $handler, $name, $middleware);
     }
 
     /**
      * Register a DELETE route.
      */
-    public function delete(string $path, mixed $handler, ?string $name = null): Route
+    public function delete(string $path, mixed $handler, ?string $name = null, array $middleware = []): Route
     {
-        return $this->add(Method::DELETE->value, $path, $handler, $name);
+        return $this->add(Method::DELETE->value, $path, $handler, $name, $middleware);
     }
 
     /**
      * Register a HEAD route.
      */
-    public function head(string $path, mixed $handler, ?string $name = null): Route
+    public function head(string $path, mixed $handler, ?string $name = null, array $middleware = []): Route
     {
-        return $this->add(Method::HEAD->value, $path, $handler, $name);
+        return $this->add(Method::HEAD->value, $path, $handler, $name, $middleware);
     }
 
     /**
      * Register an OPTIONS route.
      */
-    public function options(string $path, mixed $handler, ?string $name = null): Route
+    public function options(string $path, mixed $handler, ?string $name = null, array $middleware = []): Route
     {
-        return $this->add(Method::OPTIONS->value, $path, $handler, $name);
+        return $this->add(Method::OPTIONS->value, $path, $handler, $name, $middleware);
     }
 
     /**

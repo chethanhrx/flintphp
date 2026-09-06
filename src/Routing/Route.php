@@ -30,24 +30,51 @@ final class Route
     private readonly bool $static;
 
     /**
-     * @param string  $method  The HTTP method (uppercase).
-     * @param string  $pattern The path pattern (e.g., '/users/{id}').
-     * @param mixed   $handler The route handler (Closure, callable, etc.).
-     * @param ?string $name    Optional route name.
+     * Route-scoped middleware class names.
      *
-     * @throws RoutingException If the pattern is malformed.
+     * Stored as class-name strings so middleware can be resolved lazily
+     * through the Container at dispatch time, mirroring the global
+     * Application::addMiddleware() contract.
+     *
+     * @var string[]
+     */
+    private readonly array $middleware;
+
+    /**
+     * @param string        $method     The HTTP method (uppercase).
+     * @param string        $pattern    The path pattern (e.g., '/users/{id}').
+     * @param mixed         $handler    The handler (Closure, callable, etc.).
+     * @param ?string       $name       Optional route name.
+     * @param array<string> $middleware Route-scoped middleware class names.
+     *
+     * @throws RoutingException If the pattern is malformed or middleware is invalid.
      */
     public function __construct(
         private readonly string $method,
         private readonly string $pattern,
         private readonly mixed $handler,
         private readonly ?string $name = null,
+        array $middleware = [],
     ) {
         if (!str_starts_with($pattern, '/')) {
             throw new RoutingException(
                 sprintf('Route pattern "%s" must start with a forward slash (/).', $pattern),
             );
         }
+
+        foreach ($middleware as $middlewareClass) {
+            if (!is_string($middlewareClass) || $middlewareClass === '') {
+                throw new RoutingException(
+                    sprintf(
+                        'Route "%s" middleware must be non-empty class-name strings. Got: %s',
+                        $pattern,
+                        get_debug_type($middlewareClass),
+                    ),
+                );
+            }
+        }
+
+        $this->middleware = array_values($middleware);
 
         [$this->regex, $this->parameterNames, $this->static] = self::compile($pattern);
     }
@@ -101,6 +128,35 @@ final class Route
     public function isStatic(): bool
     {
         return $this->static;
+    }
+
+    /**
+     * Get the route-scoped middleware class names.
+     *
+     * @return string[]
+     */
+    public function middleware(): array
+    {
+        return $this->middleware;
+    }
+
+    /**
+     * Derive a new Route with the given middleware appended.
+     *
+     * The Route is immutable: this returns a new instance and never
+     * mutates the original. Note the derived Route re-compiles its regex.
+     *
+     * @param array<string> $middleware Middleware class names to append.
+     */
+    public function withMiddleware(array $middleware): self
+    {
+        return new self(
+            $this->method,
+            $this->pattern,
+            $this->handler,
+            $this->name,
+            [...$this->middleware, ...array_values($middleware)],
+        );
     }
 
     /**

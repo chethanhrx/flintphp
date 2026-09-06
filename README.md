@@ -115,6 +115,20 @@ $response = $stack->handle($request, function (Request $req): Response {
 });
 ```
 
+#### Route-Scoped Middleware
+
+In addition to the global pipeline, middleware can be attached to individual routes. Scoped middleware is registered as class-name strings and resolved lazily through the Application's Container at dispatch time (singleton-friendly). Routes without scoped middleware follow the exact same dispatch path as before.
+
+```php
+$app->router()->get('/api/secure', ProfileController::class . '@show', middleware: [
+    RequireAuthenticationMiddleware::class,
+]);
+
+$app->router()->get('/api/open', fn () => new Response('Public'));
+```
+
+Execution order: global middleware (outermost) → route-scoped middleware (innermost) → handler. Scoped middleware runs inside the Kernel's exception boundary, so a `Throwable` thrown by scoped middleware is converted by the `ExceptionHandler` exactly like a handler exception. Attributes set by scoped middleware (e.g. the authenticated identity) flow into the handler through the immutable Request.
+
 ### Kernel
 
 The Kernel is the orchestrator that bridges the MiddlewareStack, Router, and HTTP Request together.
@@ -439,6 +453,16 @@ Integrates the ORM component into the Application via the new `OrmBootstrapper`.
 *   **No Magic**: The ORM remains strictly Data Mapper based. Models are not automatically discovered, Query Builders remain transient, and there are no global DB/ORM facades.
 
 > **Limitations:** v0.30.0 is an integration release only. It explicitly does not introduce connection pooling, ORM-managed migrations, active record models, relationships, or automatic model registration.
+
+## 31. Authentication Composition (v0.31.0)
+Integrates the Authentication component into the Application and introduces route-scoped middleware.
+
+*   **Route-Scoped Middleware**: `Router::add()` and every verb method (`get()`, `post()`, `put()`, `patch()`, `delete()`, `head()`, `options()`) accept an optional trailing `array $middleware` of class-name strings. Existing 3-argument calls keep working — the change is purely additive. `Route::middleware()` exposes the list and `Route::withMiddleware()` derives a new immutable Route.
+*   **Scoped Dispatch**: Scoped middleware resolves through the Container (singleton-friendly) and executes inside the global pipeline and inside the Kernel's exception boundary. Routes without scoped middleware take the identical dispatch path as before, with zero added allocations.
+*   **AuthenticationBootstrapper**: Registers `AuthenticatorInterface` as a lazy singleton defaulting to `BearerTokenAuthenticator`, and `RequireAuthenticationMiddleware` for route-scoped use. Add it via `$app->bootstrapWith([new AuthenticationBootstrapper()])`.
+*   **Explicit UserProvider Contract**: The developer MUST explicitly bind their own `UserProviderInterface` implementation. Authentication is intentionally NOT coupled to the ORM, no User model and no universal users table is assumed, and there is no global `Auth::user()` state. If no provider is bound, the first authentication attempt fails with a Container `NotFoundException` — a deliberate fail-loud signal. To use a fully custom authenticator, rebind `AuthenticatorInterface` after bootstrapping; the default is lazy and never instantiated unless resolved.
+
+> **Limitations:** v0.31.0 provides authentication composition only. Authorization (policies/permissions) is deferred to the next milestone. Sessions, CSRF protection, and token issuance/revocation flows remain out of scope.
 
 ## Installation
 
