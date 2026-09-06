@@ -339,6 +339,17 @@ Provides a minimal, deterministic, in-memory metrics foundation with no hidden I
 
 > **Limitations:** v0.21.0 provides the in-memory metrics foundation only. Labels/tags, Prometheus/OpenTelemetry/StatsD exporters, HTTP endpoints, persistence, automatic instrumentation, and background aggregation are intentionally deferred to future versions.
 
+## 22. Configuration Foundation (v0.22.0)
+Provides a strict, immutable, nested configuration repository powered by an array without hidden I/O.
+
+*   `ConfigRepositoryInterface` / `ConfigRepository`: A read-only repository instantiated with a configuration array.
+*   **Nested Lookup (`get()` / `has()`)**: Uses dot-notation (e.g., `app.name`) to traverse nested arrays. Fully supports explicit `null`, `false`, `0`, `""`, and `[]` values.
+*   **Strict Key Validation**: Keys must strictly match `\A[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*\z` and cannot exceed 128 characters.
+*   **Snapshot Export (`all()`)**: Returns the complete configuration array without exposing internal mutability.
+*   **DI Integration**: `ConfigRepositoryInterface` can be explicitly registered with FlintPHP's existing container and then injected through normal constructor dependency resolution. v0.22 does not automatically register a global configuration repository.
+
+> **Limitations:** v0.22.0 provides the array-backed foundation only. `.env` parsing, environment variable loading, configuration files, YAML/JSON loaders, filesystem scanning, configuration caching, secrets managers, remote configuration, runtime mutation, configuration watchers, hot reload, typed configuration objects, and configuration schema validation are explicitly deferred to future versions.
+
 ## Installation
 
 ### ORM Foundation
