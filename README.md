@@ -326,7 +326,18 @@ Provides a structured, in-memory logging foundation with no hidden I/O.
 
 > **Caller responsibility:** The logger does not inspect, sanitize, or redact context values. Callers are responsible for ensuring that sensitive data (passwords, tokens, secrets) is not passed into log context. A framework logger cannot reliably detect secrets in arbitrary key/value data.
 
-> **Limitations:** v0.20.0 establishes the structured logging foundation only. File logging, database logging, log rotation, exporters, metrics, tracing, and OpenTelemetry integration are intentionally deferred to future versions. The current `Logger` is strictly in-memory and intended as a building block for future I/O adapters.
+> **Limitations:** v0.20.0 establishes the structured logging foundation only. File logging, database logging, log rotation, exporters, tracing, and OpenTelemetry integration are intentionally deferred to future versions. The current `Logger` is strictly in-memory and intended as a building block for future I/O adapters.
+
+## 21. Metrics Foundation (v0.21.0)
+Provides a minimal, deterministic, in-memory metrics foundation with no hidden I/O, no external dependencies, and no labels/tags.
+
+*   `MetricInterface`: Common contract requiring `name(): string`.
+*   `Counter`: A monotonically increasing integer counter. Starts at zero; only non-negative increments are accepted. Integer overflow is explicitly detected and rejected.
+*   `Gauge`: A signed integer gauge supporting `set()`, `increment()`, and `decrement()`. Integer overflow and underflow are explicitly detected and rejected.
+*   `Histogram`: Tracks observed finite floating-point values, maintaining count, sum, minimum, and maximum. NaN, +INF, and -INF are rejected. Sum overflow to non-finite is detected and rejected.
+*   `MetricRegistryInterface` / `MetricRegistry`: An in-memory registry that creates, caches, and retrieves metrics by name. Repeated lookups return the same instance. Cross-type name collisions are rejected. Each registry instance is fully isolated with no static or global state.
+
+> **Limitations:** v0.21.0 provides the in-memory metrics foundation only. Labels/tags, Prometheus/OpenTelemetry/StatsD exporters, HTTP endpoints, persistence, automatic instrumentation, and background aggregation are intentionally deferred to future versions.
 
 ## Installation
 
