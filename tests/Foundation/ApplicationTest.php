@@ -239,6 +239,16 @@ final class ApplicationTest extends TestCase
     }
 
     #[Test]
+    public function application_owns_and_exposes_the_exception_handler(): void
+    {
+        $app = new Application('/var/www/myapp');
+        $exceptionHandler = $app->exceptionHandler();
+
+        $this->assertInstanceOf(\FlintPHP\Framework\Http\Exception\ExceptionHandlerInterface::class, $exceptionHandler);
+        $this->assertSame($exceptionHandler, $app->exceptionHandler()); // identity preserved
+    }
+
+    #[Test]
     public function runtime_components_are_registered_in_the_container(): void
     {
         $app = new Application('/var/www/myapp');
@@ -248,13 +258,14 @@ final class ApplicationTest extends TestCase
         $this->assertSame($app->router(), $container->get(\FlintPHP\Framework\Routing\Router::class));
         $this->assertSame($app->middleware(), $container->get(\FlintPHP\Framework\Middleware\MiddlewareStack::class));
         $this->assertSame($app->kernel(), $container->get(\FlintPHP\Framework\Http\Kernel::class));
+        $this->assertSame($app->exceptionHandler(), $container->get(\FlintPHP\Framework\Http\Exception\ExceptionHandlerInterface::class));
 
         // HandlerInvoker is also registered
         $this->assertInstanceOf(\FlintPHP\Framework\Routing\HandlerInvoker::class, $container->get(\FlintPHP\Framework\Routing\HandlerInvoker::class));
     }
 
     #[Test]
-    public function kernel_uses_the_exact_application_owned_router_and_middleware_stack(): void
+    public function kernel_uses_the_exact_application_owned_router_and_middleware_stack_and_exception_handler(): void
     {
         $app = new Application('/var/www/myapp');
 
@@ -270,8 +281,13 @@ final class ApplicationTest extends TestCase
         $middlewareProperty->setAccessible(true);
         $kernelMiddleware = $middlewareProperty->getValue($kernel);
 
+        $exceptionHandlerProperty = $reflection->getProperty('exceptionHandler');
+        $exceptionHandlerProperty->setAccessible(true);
+        $kernelExceptionHandler = $exceptionHandlerProperty->getValue($kernel);
+
         $this->assertSame($app->router(), $kernelRouter, 'Kernel must use the exact Application-owned Router instance.');
         $this->assertSame($app->middleware(), $kernelMiddleware, 'Kernel must use the exact Application-owned MiddlewareStack instance.');
+        $this->assertSame($app->exceptionHandler(), $kernelExceptionHandler, 'Kernel must use the exact Application-owned ExceptionHandler instance.');
     }
 
     #[Test]
@@ -301,6 +317,7 @@ final class ApplicationTest extends TestCase
         $this->assertNotSame($appA->router(), $appB->router());
         $this->assertNotSame($appA->middleware(), $appB->middleware());
         $this->assertNotSame($appA->kernel(), $appB->kernel());
+        $this->assertNotSame($appA->exceptionHandler(), $appB->exceptionHandler());
 
         // Routes in appA do not leak to appB
         $appA->router()->get('/only-a', function () { return new \FlintPHP\Framework\Http\Response('A'); });

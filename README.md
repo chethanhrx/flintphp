@@ -391,6 +391,17 @@ Application is now the explicit HTTP composition root for the framework.
 
 > **Limitations:** v0.25.0 simply composes the foundation. It does not provide lazy loading, route caching, middleware priority systems, attribute-based routing, automatic controller discovery, or implicit file-system configuration loading. The Application's `boot()` method remains intentionally minimal at this stage.
 
+## 26. Exception Handling Foundation (v0.26.0)
+Introduces a minimal framework-level HTTP exception handling boundary.
+
+*   **Kernel-Level Exception Boundary**: Exceptions thrown by middleware or routed handlers are caught by the Kernel and passed to the exception handler to generate an HTTP Response.
+*   **Generic Default Response**: The default exception handler returns a generic 500 Internal Server Error response. It intentionally hides exception details, messages, and stack traces to prevent leaking sensitive information to clients.
+*   **ExceptionHandlerInterface**: Defines a strict deterministic contract `handle(Throwable $e, Request $req): Response`.
+*   **Application Composition**: The Application explicitly constructs, owns, and exposes the exception handler, registering it into the Container for deterministic resolution.
+*   **Handler Failure Safety**: If the exception handler itself throws, the new exception propagates normally to prevent infinite recursive error loops.
+
+> **Limitations:** v0.26.0 is intentionally minimal. It defers debug rendering, automatic logging, metrics recording, and event dispatching. It focuses strictly on bounding the HTTP request lifecycle securely. It does NOT register global PHP error/exception handlers.
+
 ## Installation
 
 ### ORM Foundation

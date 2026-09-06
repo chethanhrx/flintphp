@@ -7,6 +7,8 @@ namespace FlintPHP\Framework\Foundation;
 use FlintPHP\Framework\Config\ConfigRepository;
 use FlintPHP\Framework\Config\Contract\ConfigRepositoryInterface;
 use FlintPHP\Framework\Container\Container;
+use FlintPHP\Framework\Http\Exception\ExceptionHandler;
+use FlintPHP\Framework\Http\Exception\ExceptionHandlerInterface;
 use FlintPHP\Framework\Http\Kernel;
 use FlintPHP\Framework\Middleware\MiddlewareStack;
 use FlintPHP\Framework\Routing\HandlerInvoker;
@@ -32,6 +34,7 @@ final class Application
     private readonly Container $container;
     private readonly Router $router;
     private readonly MiddlewareStack $middlewareStack;
+    private readonly ExceptionHandlerInterface $exceptionHandler;
     private readonly Kernel $kernel;
 
     /**
@@ -55,12 +58,14 @@ final class Application
         $this->router = new Router();
         $this->middlewareStack = new MiddlewareStack();
         $invoker = new HandlerInvoker($this->container);
-        $this->kernel = new Kernel($this->router, $this->middlewareStack, $invoker);
+        $this->exceptionHandler = new ExceptionHandler();
+        $this->kernel = new Kernel($this->router, $this->middlewareStack, $invoker, $this->exceptionHandler);
 
         // 3. Register HTTP Runtime Components into the Container
         $this->container->singleton(Router::class, $this->router);
         $this->container->singleton(MiddlewareStack::class, $this->middlewareStack);
         $this->container->singleton(HandlerInvoker::class, $invoker);
+        $this->container->singleton(ExceptionHandlerInterface::class, $this->exceptionHandler);
         $this->container->singleton(Kernel::class, $this->kernel);
     }
 
@@ -102,6 +107,14 @@ final class Application
     public function kernel(): Kernel
     {
         return $this->kernel;
+    }
+
+    /**
+     * Get the exception handler.
+     */
+    public function exceptionHandler(): ExceptionHandlerInterface
+    {
+        return $this->exceptionHandler;
     }
 
     /**
