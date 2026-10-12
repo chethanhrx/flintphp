@@ -12,7 +12,7 @@ use FlintPHP\Framework\Middleware\MiddlewareInterface;
 /**
  * Fixed-window rate limiter backed by CacheInterface.
  *
- * Key: client IP by default. Returns 429 with Retry-After when exceeded.
+ * Cache keys obey framework rules: [a-zA-Z0-9_.]{1,64}
  */
 final class RateLimitMiddleware implements MiddlewareInterface
 {
@@ -32,8 +32,7 @@ final class RateLimitMiddleware implements MiddlewareInterface
 
     public function process(Request $request, callable $next): Response
     {
-        $key = $this->resolveKey($request);
-        $cacheKey = 'rate:' . hash('sha256', $key);
+        $cacheKey = $this->cacheKey($this->resolveKey($request));
 
         $current = $this->cache->get($cacheKey, 0);
         if (!is_int($current) && !is_float($current) && !is_string($current)) {
@@ -65,5 +64,14 @@ final class RateLimitMiddleware implements MiddlewareInterface
         }
 
         return $request->clientIp() ?? 'unknown';
+    }
+
+    /**
+     * Build a key compatible with ArrayCache/FileCache validation.
+     */
+    private function cacheKey(string $clientKey): string
+    {
+        // "rl." + 32 hex chars = 35 chars, within 64 and allowed charset
+        return 'rl.' . substr(hash('sha256', $clientKey), 0, 32);
     }
 }
