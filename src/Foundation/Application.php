@@ -13,6 +13,7 @@ use FlintPHP\Framework\Http\Kernel;
 use FlintPHP\Framework\Middleware\MiddlewareStack;
 use FlintPHP\Framework\Routing\HandlerInvoker;
 use FlintPHP\Framework\Routing\Router;
+use LogicException;
 
 /**
  * The FlintPHP Application.
@@ -35,7 +36,7 @@ final class Application
     private readonly Container $container;
     private readonly Router $router;
     private ?MiddlewareStack $middlewareStack = null;
-    private readonly ExceptionHandlerInterface $exceptionHandler;
+    private ExceptionHandlerInterface $exceptionHandler;
     private ?Kernel $kernel = null;
 
     /** @var string[] */
@@ -52,19 +53,15 @@ final class Application
         private readonly string $basePath,
         ?ConfigRepositoryInterface $config = null,
     ) {
-        // Initialize explicit or sensible default instances
         $this->config = $config ?? new ConfigRepository([]);
         $this->container = new Container();
 
-        // 1. Configuration Registration
         $this->container->singleton(ConfigRepositoryInterface::class, $this->config);
 
-        // 2. HTTP Runtime Composition
         $this->router = new Router();
         $invoker = new HandlerInvoker($this->container);
         $this->exceptionHandler = new ExceptionHandler();
 
-        // 3. Register HTTP Runtime Components into the Container
         $this->container->singleton(Router::class, $this->router);
         $this->container->singleton(HandlerInvoker::class, $invoker);
         $this->container->singleton(ExceptionHandlerInterface::class, $this->exceptionHandler);
@@ -78,33 +75,21 @@ final class Application
         });
     }
 
-    /**
-     * Get the application's dependency injection container.
-     */
     public function container(): Container
     {
         return $this->container;
     }
 
-    /**
-     * Get the application's configuration repository.
-     */
     public function config(): ConfigRepositoryInterface
     {
         return $this->config;
     }
 
-    /**
-     * Get the HTTP router.
-     */
     public function router(): Router
     {
         return $this->router;
     }
 
-    /**
-     * Get the HTTP middleware stack.
-     */
     public function middleware(): MiddlewareStack
     {
         if ($this->middlewareStack === null) {
@@ -131,9 +116,6 @@ final class Application
         return $this->middlewareStack;
     }
 
-    /**
-     * Get the HTTP kernel.
-     */
     public function kernel(): Kernel
     {
         if ($this->kernel === null) {
@@ -152,32 +134,43 @@ final class Application
     /**
      * Register a global middleware class.
      *
-     * @param string $middlewareClass
-     * @throws \LogicException If the HTTP pipeline has already been finalized.
+     * @throws LogicException If the HTTP pipeline has already been finalized.
      */
     public function addMiddleware(string $middlewareClass): void
     {
         if ($this->middlewareStackFrozen) {
-            throw new \LogicException('Cannot add middleware after the HTTP pipeline has been finalized.');
+            throw new LogicException('Cannot add middleware after the HTTP pipeline has been finalized.');
         }
 
         $this->globalMiddlewares[] = $middlewareClass;
     }
 
-    /**
-     * Get the exception handler.
-     */
     public function exceptionHandler(): ExceptionHandlerInterface
     {
         return $this->exceptionHandler;
     }
 
     /**
-     * Bootstrap the application with the given bootstrappers.
+     * Replace the exception handler before the Kernel is built.
      *
-     * Iterates through the provided array and executes each BootstrapperInterface
-     * sequentially.
+     * Typical use for API apps:
+     *   $app->setExceptionHandler(new JsonExceptionHandler());
      *
+     * @throws LogicException If kernel() has already been resolved.
+     */
+    public function setExceptionHandler(ExceptionHandlerInterface $handler): void
+    {
+        if ($this->kernel !== null) {
+            throw new LogicException(
+                'Cannot replace the exception handler after the Kernel has been finalized.'
+            );
+        }
+
+        $this->exceptionHandler = $handler;
+        $this->container->singleton(ExceptionHandlerInterface::class, $handler);
+    }
+
+    /**
      * @param array $bootstrappers An array of BootstrapperInterface instances.
      *
      * @throws \InvalidArgumentException If an element is not a BootstrapperInterface.
@@ -197,13 +190,6 @@ final class Application
         }
     }
 
-    /**
-     * Boot the application.
-     *
-     * Marks the application as booted.
-     *
-     * This method is idempotent — calling it multiple times is safe.
-     */
     public function boot(): void
     {
         if ($this->booted) {
@@ -213,28 +199,16 @@ final class Application
         $this->booted = true;
     }
 
-    /**
-     * Determine if the application has been booted.
-     */
     public function isBooted(): bool
     {
         return $this->booted;
     }
 
-    /**
-     * Get the base path of the application.
-     *
-     * Returns the path with trailing directory separators removed,
-     * preserving the root path '/' on Unix systems.
-     */
     public function basePath(): string
     {
         return rtrim($this->basePath, DIRECTORY_SEPARATOR) ?: DIRECTORY_SEPARATOR;
     }
 
-    /**
-     * Get the framework version.
-     */
     public function version(): string
     {
         return FlintPHP::VERSION;
