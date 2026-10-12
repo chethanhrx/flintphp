@@ -26,6 +26,7 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           coverage: none
+          tools: none
 
       - name: Validate composer.json
         run: composer validate --strict
@@ -35,6 +36,9 @@ jobs:
 
       - name: Syntax check (lint)
         run: find src -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+
+      - name: PHPStan
+        run: vendor/bin/phpstan analyse --memory-limit=512M
 
       - name: Run test suite
         run: vendor/bin/phpunit
