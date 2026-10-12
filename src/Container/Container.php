@@ -13,46 +13,32 @@ use ReflectionNamedType;
 /**
  * Dependency Injection Container.
  *
- * Implements PSR-11 and provides explicit binding, singleton caching,
- * aliases, and reflection-based auto-wiring for concrete classes.
+ * PSR-11 with explicit binding, singleton caching, aliases, and reflection
+ * auto-wiring for concrete classes.
  */
 final class Container implements ContainerInterface
 {
-    /**
-     * @var array<string, mixed>
-     */
+    /** @var array<string, mixed> */
     private array $bindings = [];
 
-    /**
-     * @var array<string, bool>
-     */
+    /** @var array<string, bool> */
     private array $shared = [];
 
-    /**
-     * @var array<string, string>
-     */
+    /** @var array<string, string> */
     private array $aliases = [];
 
-    /**
-     * @var array<string, mixed>
-     */
+    /** @var array<string, mixed> */
     private array $instances = [];
 
-    /**
-     * @var array<string, true>
-     */
+    /** @var array<string, true> */
     private array $buildStack = [];
 
     public function __construct()
     {
-        // Bind the container to itself
         $this->instances[self::class] = $this;
         $this->instances[ContainerInterface::class] = $this;
     }
 
-    /**
-     * Bind a value or factory closure to an ID.
-     */
     public function set(string $id, mixed $concrete): void
     {
         $this->bindings[$id] = $concrete;
@@ -60,9 +46,6 @@ final class Container implements ContainerInterface
         unset($this->instances[$id]);
     }
 
-    /**
-     * Bind a value or factory closure to an ID as a shared singleton.
-     */
     public function singleton(string $id, mixed $concrete): void
     {
         $this->bindings[$id] = $concrete;
@@ -71,16 +54,16 @@ final class Container implements ContainerInterface
     }
 
     /**
-     * Alias an abstract type (like an interface) to a concrete type.
+     * Alias an abstract type to a concrete class name.
+     *
+     * Resolution is transient unless the concrete is also registered as a singleton.
+     * Prefer singleton(Iface::class, fn () => new Concrete()) when one instance is required.
      */
     public function bind(string $abstract, string $concrete): void
     {
         $this->aliases[$abstract] = $concrete;
     }
 
-    /**
-     * Returns true if the container can return an entry for the given identifier.
-     */
     public function has(string $id): bool
     {
         $id = $this->resolveAlias($id);
@@ -90,22 +73,14 @@ final class Container implements ContainerInterface
             || class_exists($id);
     }
 
-    /**
-     * Finds an entry of the container by its identifier and returns it.
-     *
-     * @throws NotFoundException  No entry was found for **this** identifier.
-     * @throws ContainerException Error while retrieving the entry.
-     */
     public function get(string $id): mixed
     {
         $id = $this->resolveAlias($id);
 
-        // 1. Check cached singletons
         if (isset($this->instances[$id])) {
             return $this->instances[$id];
         }
 
-        // 2. Check explicit bindings
         if (isset($this->bindings[$id])) {
             $concrete = $this->bindings[$id];
 
@@ -120,24 +95,13 @@ final class Container implements ContainerInterface
             return $object;
         }
 
-        // 3. Fallback to Reflection-based Auto-wiring for concrete classes
         if (!class_exists($id)) {
             throw new NotFoundException(sprintf('Target [%s] is not bound and does not exist.', $id));
         }
 
-        $object = $this->build($id);
-
-        // Auto-wired instances are transient by default.
-        // We only cache them if they were explicitly registered as singletons,
-        // but if they weren't explicitly registered, they aren't singletons.
-        return $object;
+        return $this->build($id);
     }
 
-    /**
-     * Build an instance of a given class using Reflection.
-     *
-     * @throws ContainerException
-     */
     private function build(string $concrete): object
     {
         if (isset($this->buildStack[$concrete])) {
@@ -155,13 +119,11 @@ final class Container implements ContainerInterface
 
             $constructor = $reflector->getConstructor();
 
-            // No constructor? Just instantiate it.
             if ($constructor === null) {
                 return new $concrete();
             }
 
-            $parameters = $constructor->getParameters();
-            $dependencies = $this->resolveDependencies($parameters, $concrete);
+            $dependencies = $this->resolveDependencies($constructor->getParameters(), $concrete);
 
             return $reflector->newInstanceArgs($dependencies);
         } catch (ReflectionException $e) {
@@ -172,10 +134,7 @@ final class Container implements ContainerInterface
     }
 
     /**
-     * Resolve all dependencies for a set of ReflectionParameters.
-     *
      * @param \ReflectionParameter[] $parameters
-     * @throws ContainerException
      */
     private function resolveDependencies(array $parameters, string $concrete): array
     {
@@ -185,12 +144,25 @@ final class Container implements ContainerInterface
             $type = $parameter->getType();
 
             if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
-                // It's a class or interface dependency
-                $results[] = $this->get($type->getName());
+                $className = $type->getName();
+
+                // Prefer default / null for unbound optional class deps (interfaces etc.)
+                if (!$this->has($className)) {
+                    if ($parameter->isDefaultValueAvailable()) {
+                        $results[] = $parameter->getDefaultValue();
+                        continue;
+                    }
+
+                    if ($parameter->allowsNull()) {
+                        $results[] = null;
+                        continue;
+                    }
+                }
+
+                $results[] = $this->get($className);
                 continue;
             }
 
-            // Un-hinted or scalar dependency
             if ($parameter->isDefaultValueAvailable()) {
                 $results[] = $parameter->getDefaultValue();
                 continue;
@@ -209,9 +181,6 @@ final class Container implements ContainerInterface
         return $results;
     }
 
-    /**
-     * Resolve the true ID through any layers of aliases.
-     */
     private function resolveAlias(string $id): string
     {
         $visited = [];

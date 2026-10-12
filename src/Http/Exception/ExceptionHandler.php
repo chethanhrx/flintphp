@@ -9,11 +9,13 @@ use FlintPHP\Framework\Http\Response;
 use Throwable;
 
 /**
- * The default exception handler.
+ * Default exception handler.
  *
- * Provides a generic, production-safe HTTP 500 response.
- * It intentionally obscures exception details (message, class, stack trace)
- * to prevent leaking sensitive information to clients.
+ * - Unexpected failures → generic 500, no internal disclosure
+ * - HttpException → public message only, with text/plain + nosniff
+ *
+ * Prefer JsonExceptionHandler for API applications:
+ *   $app->setExceptionHandler(new JsonExceptionHandler());
  */
 final class ExceptionHandler implements ExceptionHandlerInterface
 {
@@ -25,15 +27,19 @@ final class ExceptionHandler implements ExceptionHandlerInterface
                 $message = sprintf('HTTP %d', $exception->status());
             }
 
-            return new Response(
+            return (new Response(
                 body: $message . "\n",
                 status: $exception->status(),
-            );
+            ))
+                ->withHeader('Content-Type', 'text/plain; charset=UTF-8')
+                ->withHeader('X-Content-Type-Options', 'nosniff');
         }
 
-        return new Response(
+        return (new Response(
             body: "Internal Server Error\n",
             status: 500,
-        );
+        ))
+            ->withHeader('Content-Type', 'text/plain; charset=UTF-8')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
     }
 }
