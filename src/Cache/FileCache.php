@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace FlintPHP\\Framework\\Cache;
+namespace FlintPHP\Framework\Cache;
 
-use FlintPHP\\Framework\\Cache\\Exception\\CacheStorageException;
-use FlintPHP\\Framework\\Cache\\Exception\\InvalidArgumentException;
-use FlintPHP\\Framework\\Cache\\Exception\\InvalidCacheValueException;
+use FlintPHP\Framework\Cache\Exception\CacheStorageException;
+use FlintPHP\Framework\Cache\Exception\InvalidArgumentException;
+use FlintPHP\Framework\Cache\Exception\InvalidCacheValueException;
 use DirectoryIterator;
 use JsonException;
 
@@ -105,7 +105,7 @@ final class FileCache implements CacheInterface, AtomicCounterInterface
 
         foreach ($iterator as $file) {
             $filename = $file->getFilename();
-            if (!$file->isFile() || preg_match('/\\A([a-f0-9]{64})\\.json\\z/', $filename, $matches) !== 1) {
+            if (!$file->isFile() || preg_match('/\A([a-f0-9]{64})\.json\z/', $filename, $matches) !== 1) {
                 continue;
             }
 
@@ -227,7 +227,7 @@ final class FileCache implements CacheInterface, AtomicCounterInterface
 
     private function validateKey(string $key): void
     {
-        if (!preg_match('/\\A[a-zA-Z0-9_.]{1,64}\\z/', $key)) {
+        if (!preg_match('/\A[a-zA-Z0-9_.]{1,64}\z/', $key)) {
             throw new InvalidArgumentException(sprintf('Invalid cache key: "%s"', $key));
         }
     }
