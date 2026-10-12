@@ -243,12 +243,13 @@ final class FileCacheTest extends TestCase
         $workers = [];
 
         for ($i = 0; $i < $numProcesses; $i++) {
-            $cmd = sprintf(
-                'php -r "require %s; $c = new FlintPHP\\\\Framework\\\\Cache\\\\FileCache(%s); for ($j = 0; $j < %d; $j++) { $c->increment(\\'shared_counter\\', 1, 60); }"',
-                escapeshellarg($autoloadPath),
-                escapeshellarg($this->cacheDir),
+            $phpCode = sprintf(
+                'require %s; $c = new \\FlintPHP\\Framework\\Cache\\FileCache(%s); for ($j = 0; $j < %d; $j++) { $c->increment("shared_counter", 1, 60); }',
+                var_export($autoloadPath, true),
+                var_export($this->cacheDir, true),
                 $incrementsPerProcess
             );
+            $cmd = 'php -r ' . escapeshellarg($phpCode);
 
             $proc = proc_open($cmd, [
                 0 => ['pipe', 'r'],
