@@ -16,16 +16,6 @@ use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
 
-/**
- * Resolves and invokes route handlers.
- *
- * Supported handler forms:
- * - Closure / callable
- * - [ControllerClass::class, 'method']
- * - Invokable ControllerClass::class
- *
- * String "Controller@method" is intentionally NOT supported.
- */
 final class HandlerInvoker
 {
     public function __construct(
@@ -133,7 +123,7 @@ final class HandlerInvoker
     }
 
     /**
-     * Cast route parameters. Invalid casts are client errors (422), not server errors.
+     * Bad typed route segments mean the resource path does not exist → 404.
      */
     private function castRouteParameter(string $value, string $name, ?\ReflectionType $type): mixed
     {
@@ -142,10 +132,7 @@ final class HandlerInvoker
 
             if ($typeName === 'int') {
                 if (filter_var($value, FILTER_VALIDATE_INT) === false) {
-                    throw new HttpException(
-                        422,
-                        sprintf('Route parameter "%s" must be an integer.', $name)
-                    );
+                    throw new HttpException(404, 'Not Found');
                 }
 
                 return (int) $value;
@@ -153,10 +140,7 @@ final class HandlerInvoker
 
             if ($typeName === 'float') {
                 if (filter_var($value, FILTER_VALIDATE_FLOAT) === false) {
-                    throw new HttpException(
-                        422,
-                        sprintf('Route parameter "%s" must be a float.', $name)
-                    );
+                    throw new HttpException(404, 'Not Found');
                 }
 
                 return (float) $value;
@@ -165,20 +149,14 @@ final class HandlerInvoker
             if ($typeName === 'bool') {
                 $filtered = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
                 if ($filtered === null) {
-                    throw new HttpException(
-                        422,
-                        sprintf('Route parameter "%s" must be a boolean.', $name)
-                    );
+                    throw new HttpException(404, 'Not Found');
                 }
 
                 return $filtered;
             }
 
             if ($typeName === 'array') {
-                throw new HttpException(
-                    422,
-                    sprintf('Route parameter "%s" cannot be cast to array.', $name)
-                );
+                throw new HttpException(404, 'Not Found');
             }
         }
 

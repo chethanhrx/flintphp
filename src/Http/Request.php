@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace FlintPHP\Framework\Http;
 
+use FlintPHP\Framework\Http\Exception\HttpException;
 use FlintPHP\Framework\Security\Http\TrustedProxyConfiguration;
+use JsonException;
 
 /**
- * Immutable HTTP request representation.
+ * Immutable HTTP request.
  *
- * All data is treated as untrusted. Superglobals are only read in fromGlobals().
+ * Path rules:
+ * - Strip query string (?) and fragment (#) without parse_url
+ * - Require a leading /
+ * - Collapse consecutive slashes (//a → /a) so routing cannot disagree with common proxies
+ * - Segments are NOT percent-decoded (handlers receive raw segment text)
  */
 final class Request
 {
@@ -41,12 +47,10 @@ final class Request
     public static function fromGlobals(?TrustedProxyConfiguration $trustedProxies = null): self
     {
         $server = $_SERVER;
-        $method = strtoupper($server['REQUEST_METHOD'] ?? 'GET');
-        $uri = $server['REQUEST_URI'] ?? '/';
 
         return new self(
-            method: $method,
-            uri: $uri,
+            method: strtoupper($server['REQUEST_METHOD'] ?? 'GET'),
+            uri: $server['REQUEST_URI'] ?? '/',
             headers: self::extractHeaders($server),
             body: self::readBody(),
             server: $server,
@@ -79,9 +83,26 @@ final class Request
 
     public function path(): string
     {
-        $path = parse_url($this->uri, PHP_URL_PATH);
+        $path = $this->uri;
 
-        return $path !== null && $path !== false && $path !== '' ? $path : '/';
+        $q = strpos($path, '?');
+        if ($q !== false) {
+            $path = substr($path, 0, $q);
+        }
+
+        $h = strpos($path, '#');
+        if ($h !== false) {
+            $path = substr($path, 0, $h);
+        }
+
+        if ($path === '' || $path[0] !== '/') {
+            return '/';
+        }
+
+        // Collapse // so //evil/api cannot bypass simple string checks inconsistently
+        $collapsed = preg_replace('#/{2,}#', '/', $path);
+
+        return ($collapsed !== null && $collapsed !== '') ? $collapsed : '/';
     }
 
     public function query(?string $key = null, mixed $default = null): mixed
@@ -109,12 +130,9 @@ final class Request
     }
 
     /**
-     * Decode the request body as JSON.
+     * Decode JSON body. Empty body → []. Invalid JSON / non-array → HttpException 400.
      *
      * @return array<string, mixed>|list<mixed>
-     *
-     * @throws \JsonException If the body is not valid JSON
-     * @throws \InvalidArgumentException If JSON is not an array/object
      */
     public function json(): array
     {
@@ -122,10 +140,14 @@ final class Request
             return [];
         }
 
-        $decoded = json_decode($this->body, true, 512, JSON_THROW_ON_ERROR);
+        try {
+            $decoded = json_decode($this->body, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            throw new HttpException(400, 'Invalid JSON body', $e);
+        }
 
         if (!is_array($decoded)) {
-            throw new \InvalidArgumentException('JSON body must decode to an array or object.');
+            throw new HttpException(400, 'JSON body must be an object or array');
         }
 
         return $decoded;
@@ -164,8 +186,7 @@ final class Request
             }
 
             if (str_starts_with($key, 'HTTP_')) {
-                $name = str_replace('_', '-', substr($key, 5));
-                $headers[$name] = $value;
+                $headers[str_replace('_', '-', substr($key, 5))] = $value;
             } elseif ($key === 'CONTENT_TYPE') {
                 $headers['Content-Type'] = $value;
             } elseif ($key === 'CONTENT_LENGTH') {
@@ -176,7 +197,7 @@ final class Request
         return $headers;
     }
 
-    /** @deprecated Use attribute() instead. */
+    /** @deprecated Use attribute() */
     public function getAttribute(string $key, mixed $default = null): mixed
     {
         return $this->attribute($key, $default);
@@ -270,8 +291,7 @@ final class Request
         }
 
         if (isset($server['HTTP_X_FORWARDED_FOR'])) {
-            $ips = array_map('trim', explode(',', $server['HTTP_X_FORWARDED_FOR']));
-            $ips = array_reverse($ips);
+            $ips = array_reverse(array_map('trim', explode(',', $server['HTTP_X_FORWARDED_FOR'])));
             foreach ($ips as $ip) {
                 if (!$trustedProxies->isTrusted($ip)) {
                     return $ip;
