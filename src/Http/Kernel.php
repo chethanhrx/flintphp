@@ -16,26 +16,13 @@ use Throwable;
 /**
  * The HTTP Kernel.
  *
- * The Kernel orchestrates the request lifecycle. It accepts an incoming
- * HTTP Request, passes it through the MiddlewareStack, matches a Route
- * using the Router, executes the matched handler, and returns an HTTP Response.
- *
- * It also defines the explicit framework HTTP exception boundary.
+ * Orchestrates the request lifecycle: middleware → router → handler,
+ * with a single exception boundary.
  */
 final class Kernel
 {
     private readonly ExceptionHandlerInterface $exceptionHandler;
 
-    /**
-     * @param Router                    $router           The routing engine.
-     * @param MiddlewareStack           $middlewareStack  The middleware pipeline.
-     * @param HandlerInvoker            $invoker          The handler dispatcher.
-     * @param ExceptionHandlerInterface|null $exceptionHandler The exception boundary handler.
-     * @param ContainerInterface|null   $container        Optional container used to resolve
-     *                                                    route-scoped middleware class names.
-     *                                                    When null, scoped middleware is
-     *                                                    instantiated directly.
-     */
     public function __construct(
         private readonly Router $router,
         private readonly MiddlewareStack $middlewareStack,
@@ -46,12 +33,6 @@ final class Kernel
         $this->exceptionHandler = $exceptionHandler ?? new \FlintPHP\Framework\Http\Exception\ExceptionHandler();
     }
 
-    /**
-     * Handle an incoming HTTP request and return a response.
-     *
-     * @param Request $request
-     * @return Response
-     */
     public function handle(Request $request): Response
     {
         try {
@@ -65,11 +46,11 @@ final class Kernel
                 if ($result->isMethodNotAllowed()) {
                     $allowed = implode(', ', $result->allowedMethods());
 
-                    return (new Response('Method Not Allowed', 405))
+                    return Response::error('Method Not Allowed', 405, 'method_not_allowed')
                         ->withHeader('Allow', $allowed);
                 }
 
-                return new Response('Not Found', 404);
+                return Response::error('Not Found', 404, 'not_found');
             };
 
             return $this->middlewareStack->handle($request, $terminalHandler);
@@ -79,18 +60,7 @@ final class Kernel
     }
 
     /**
-     * Dispatch a matched route through its route-scoped middleware pipeline.
-     *
-     * Routes without scoped middleware are invoked directly, preserving the
-     * exact pre-existing dispatch path with zero added allocations.
-     *
-     * Scoped middleware runs inside the global pipeline and inside the
-     * Kernel's exception boundary: a Throwable thrown by scoped middleware
-     * reaches the ExceptionHandler exactly like any handler exception.
-     *
-     * @param Route                 $route      The matched route.
-     * @param Request               $request    The current request.
-     * @param array<string, string> $parameters Matched route parameters.
+     * @param array<string, string> $parameters
      */
     private function dispatchRoute(Route $route, Request $request, array $parameters): Response
     {
