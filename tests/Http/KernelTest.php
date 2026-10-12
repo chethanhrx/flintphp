@@ -46,7 +46,10 @@ final class KernelTest extends TestCase
         $response = $kernel->handle($request);
 
         $this->assertSame(404, $response->status());
-        $this->assertSame('Not Found', $response->body());
+        $this->assertSame('application/json', $response->header('Content-Type'));
+        $payload = json_decode($response->body(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('Not Found', $payload['error']['message']);
+        $this->assertSame('not_found', $payload['error']['code']);
     }
 
     #[Test]
@@ -61,7 +64,9 @@ final class KernelTest extends TestCase
         $response = $kernel->handle($request);
 
         $this->assertSame(405, $response->status());
-        $this->assertSame('Method Not Allowed', $response->body());
+        $this->assertSame('application/json', $response->header('Content-Type'));
+        $payload = json_decode($response->body(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('Method Not Allowed', $payload['error']['message']);
         $this->assertSame('GET, POST', $response->header('Allow'));
     }
 
@@ -105,10 +110,6 @@ final class KernelTest extends TestCase
 
         $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker, $this->exceptionHandler);
         $request = new Request('GET', '/invalid');
-
-        // Note: HandlerInvoker resolves callable before route matches, inside invoke().
-        // Wait! In v0.26, the exception handler catches this.
-        // So it should return a 500 response, not bubble up!
 
         $response = $kernel->handle($request);
 
@@ -196,7 +197,7 @@ final class KernelTest extends TestCase
         };
 
         $this->router->get('/test', function () use (&$log): Response {
-            $log[] = 'Handler executed'; // Should not happen
+            $log[] = 'Handler executed';
             return new Response();
         });
 
@@ -333,7 +334,6 @@ final class KernelTest extends TestCase
             throw new RuntimeException('Secret handler exception');
         });
 
-        // 3 arguments, no ExceptionHandler provided
         $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker);
         $request = new Request('GET', '/boom');
 
