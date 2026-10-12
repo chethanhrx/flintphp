@@ -88,4 +88,20 @@ final class DatabaseQueueTest extends TestCase
         $failed = $db->fetchColumn('SELECT COUNT(*) FROM flint_failed_jobs');
         $this->assertSame(1, (int) $failed);
     }
+
+    #[Test]
+    public function concurrent_workers_do_not_duplicate_job(): void
+    {
+        $db = ConnectionFactory::make(['driver' => 'sqlite', 'database' => ':memory:']);
+        $queue = new DatabaseQueue($db);
+        $queue->push(new ExampleJob('unique_job'));
+
+        // First worker claims the job
+        $job1 = $queue->pop();
+        $this->assertNotNull($job1);
+
+        // Second worker attempts pop on empty queue
+        $job2 = $queue->pop();
+        $this->assertNull($job2);
+    }
 }

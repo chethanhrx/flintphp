@@ -55,29 +55,35 @@ final class DatabaseQueue implements QueueInterface
 
     public function pop(): ?JobInterface
     {
-        $now = gmdate('c');
+        while (true) {
+            $now = gmdate('c');
 
-        $row = $this->connection->fetch(
-            'SELECT id, job_class, payload, attempts FROM flint_jobs
-             WHERE queue = ? AND available_at <= ?
-             ORDER BY id ASC LIMIT 1',
-            [$this->queue, $now]
-        );
+            $row = $this->connection->fetch(
+                'SELECT id, job_class, payload, attempts FROM flint_jobs
+                 WHERE queue = ? AND available_at <= ?
+                 ORDER BY id ASC LIMIT 1',
+                [$this->queue, $now]
+            );
 
-        if ($row === null) {
-            return null;
+            if ($row === null) {
+                return null;
+            }
+
+            $deleted = $this->connection->execute('DELETE FROM flint_jobs WHERE id = ?', [$row['id']]);
+            if ($deleted === 0) {
+                // Another concurrent worker claimed this job; retry next available job
+                continue;
+            }
+
+            $job = $this->hydrate((string) $row['job_class'], (string) $row['payload']);
+
+            return new ReservedJob(
+                id: (string) $row['id'],
+                job: $job,
+                attempts: (int) $row['attempts'],
+                queue: $this,
+            );
         }
-
-        $this->connection->execute('DELETE FROM flint_jobs WHERE id = ?', [$row['id']]);
-
-        $job = $this->hydrate((string) $row['job_class'], (string) $row['payload']);
-
-        return new ReservedJob(
-            id: (string) $row['id'],
-            job: $job,
-            attempts: (int) $row['attempts'],
-            queue: $this,
-        );
     }
 
     public function size(): int

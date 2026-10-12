@@ -150,4 +150,70 @@ final class FileCacheTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->cache->set('../foo', 'bar');
     }
+
+    #[Test]
+    public function it_increments_new_key_with_step_and_ttl(): void
+    {
+        $val = $this->cache->increment('counter', 1, 60);
+        $this->assertSame(1, $val);
+        $this->assertSame(1, $this->cache->get('counter'));
+
+        $val2 = $this->cache->increment('counter', 4);
+        $this->assertSame(5, $val2);
+        $this->assertSame(5, $this->cache->get('counter'));
+    }
+
+    #[Test]
+    public function it_rejects_invalid_increment_step(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->cache->increment('counter', 0);
+    }
+
+    #[Test]
+    public function it_rejects_invalid_increment_ttl(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->cache->increment('counter', 1, -5);
+    }
+
+    #[Test]
+    public function it_handles_concurrent_increments_across_processes(): void
+    {
+        $numProcesses = 5;
+        $incrementsPerProcess = 20;
+        $autoloadPath = dirname(__DIR__, 2) . '/vendor/autoload.php';
+
+        $workers = [];
+        for ($i = 0; $i < $numProcesses; $i++) {
+            $cmd = sprintf(
+                'php -r "require %s; \$c = new FlintPHP\Framework\Cache\FileCache(%s); for (\$j = 0; \$j < %d; \$j++) { \$c->increment(\'concurrent_key\', 1, 60); }"',
+                escapeshellarg($autoloadPath),
+                escapeshellarg($this->cacheDir),
+                $incrementsPerProcess
+            );
+
+            $proc = proc_open($cmd, [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ], $pipes);
+
+            if (is_resource($proc)) {
+                $workers[] = ['proc' => $proc, 'pipes' => $pipes];
+            }
+        }
+
+        foreach ($workers as $worker) {
+            fclose($worker['pipes'][0]);
+            fclose($worker['pipes'][1]);
+            fclose($worker['pipes'][2]);
+            proc_close($worker['proc']);
+        }
+
+        $finalValue = $this->cache->get('concurrent_key');
+        $expected = $numProcesses * $incrementsPerProcess;
+        $this->assertSame($expected, $finalValue);
+    }
 }
+

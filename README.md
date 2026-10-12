@@ -224,6 +224,60 @@ $app->router()->get(
 
 Send: `Authorization: Bearer <token>`.
 
+### JWT Authentication (HMAC SHA-256)
+
+For stateless tokens, use `JwtAuthenticator` backed by `HmacJwt`:
+
+```php
+use FlintPHP\Framework\Authentication\Jwt\JwtAuthenticator;
+
+$jwtAuth = new JwtAuthenticator(
+    secret: $env['JWT_SECRET'],
+    userFactory: fn (array $payload) => new User($payload['sub'], $payload['email'] ?? null),
+    leewaySeconds: 30,             // Optional clock-skew tolerance (default: 0)
+    expectedIssuer: 'https://api.myapp.com', // Optional iss validation
+    expectedAudience: 'myapp-clients',       // Optional aud validation
+);
+```
+
+**Security properties:**
+- **Algorithm enforcement:** Strictly HS256. Rejects `none`, RS256, and algorithm confusion attacks.
+- **Required Expiration:** The `exp` claim is strictly required and must be numeric. Tokens without `exp` fail closed.
+- **Strict Boundary Check:** Tokens are invalid once `$now >= $exp + $leeway`.
+- **Claim validation:** Validates `nbf` (not before), `iat` (issued at), `iss` (issuer), and `aud` (audience).
+- **Bounds & Format:** Rejects tokens over 8,192 bytes, non-Base64URL characters, and malformed JSON payloads.
+
+---
+
+## Rate Limiting & Cache
+
+FlintPHP provides concurrency-safe fixed-window rate limiting backed by `CacheInterface`:
+
+```php
+use FlintPHP\Framework\Cache\FileCache;
+use FlintPHP\Framework\Http\Middleware\RateLimitMiddleware;
+
+$cache = new FileCache(__DIR__ . '/storage/cache');
+
+// 60 requests per 60 seconds per client IP
+$rateLimiter = new RateLimitMiddleware(
+    cache: $cache,
+    maxAttempts: 60,
+    windowSeconds: 60,
+    keyResolver: null,             // Defaults to $request->clientIp() ?? 'unknown'
+    failClosed: true,              // Returns 429 if cache backend fails (avoids leaking errors)
+);
+
+$app->addMiddleware($rateLimiter);
+```
+
+### Concurrency Guarantees:
+- **`AtomicCounterInterface`:** Drivers implementing this interface (`FileCache`, `ArrayCache`) perform atomic counter increment and TTL initialization without resetting active window expirations.
+- **`FileCache`:** Uses advisory process-safe file locks (`flock` with `LOCK_EX`) on `c+` stream handles. Concurrency safe across multiple PHP-FPM / CLI worker processes on the same host.
+- **`ArrayCache`:** Thread-safe within a single PHP process lifecycle.
+- **Non-atomic drivers:** Fall back to read-then-write; concurrency safety cannot be guaranteed by non-atomic drivers.
+- **Reverse Proxy Protection:** `clientIp()` respects `TrustedProxyConfiguration`. Spoofed `X-Forwarded-For` headers from untrusted clients are strictly ignored.
+
 ---
 
 ## Database

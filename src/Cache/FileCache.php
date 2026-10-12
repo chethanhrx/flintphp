@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace FlintPHP\Framework\Cache;
 
+use FlintPHP\Framework\Cache\Exception\CacheStorageException;
 use FlintPHP\Framework\Cache\Exception\InvalidArgumentException;
 use FlintPHP\Framework\Cache\Exception\InvalidCacheValueException;
 use DirectoryIterator;
 use JsonException;
 
-final class FileCache implements CacheInterface
+final class FileCache implements CacheInterface, AtomicCounterInterface
 {
     public function __construct(
         private readonly string $directory
@@ -155,6 +156,88 @@ final class FileCache implements CacheInterface
         }
 
         return true;
+    }
+
+    public function increment(string $key, int $step = 1, ?int $ttl = null): int
+    {
+        $this->validateKey($key);
+
+        if ($step < 1) {
+            throw new InvalidArgumentException('Increment step must be at least 1.');
+        }
+
+        if ($ttl !== null && $ttl <= 0) {
+            throw new InvalidArgumentException('Initial TTL must be greater than 0.');
+        }
+
+        if (!$this->ensureDirectory()) {
+            throw new CacheStorageException(sprintf('Failed to create cache directory "%s".', $this->directory));
+        }
+
+        $path = $this->path($key);
+        $fp = @fopen($path, 'c+');
+        if ($fp === false) {
+            throw new CacheStorageException(sprintf('Failed to open cache file "%s" for atomic increment.', $path));
+        }
+
+        if (!flock($fp, LOCK_EX)) {
+            fclose($fp);
+            throw new CacheStorageException(sprintf('Failed to acquire lock for cache file "%s".', $path));
+        }
+
+        try {
+            rewind($fp);
+            $content = stream_get_contents($fp);
+            $data = null;
+            if ($content !== false && $content !== '') {
+                try {
+                    $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+                } catch (JsonException) {
+                    $data = null;
+                }
+            }
+
+            $isExpired = false;
+            if (is_array($data) && array_key_exists('expires_at', $data) && array_key_exists('value', $data)) {
+                if ($data['expires_at'] !== null && $data['expires_at'] < time()) {
+                    $isExpired = true;
+                }
+            } else {
+                $isExpired = true;
+            }
+
+            if ($isExpired || $data === null) {
+                $expiresAt = $ttl === null ? null : time() + $ttl;
+                $newValue = $step;
+            } else {
+                $expiresAt = $data['expires_at'];
+                $current = $data['value'];
+                $currentInt = is_int($current) ? $current : (is_numeric($current) ? (int) $current : 0);
+                $newValue = $currentInt + $step;
+            }
+
+            try {
+                $payload = json_encode([
+                    'expires_at' => $expiresAt,
+                    'value' => $newValue,
+                ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+            } catch (JsonException $e) {
+                throw new InvalidCacheValueException('Cannot serialize value to JSON for cache: ' . $e->getMessage(), 0, $e);
+            }
+
+            ftruncate($fp, 0);
+            rewind($fp);
+            $written = fwrite($fp, $payload);
+            if ($written === false) {
+                throw new CacheStorageException(sprintf('Failed to write to cache file "%s".', $path));
+            }
+            fflush($fp);
+
+            return $newValue;
+        } finally {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+        }
     }
 
     private function validateKey(string $key): void

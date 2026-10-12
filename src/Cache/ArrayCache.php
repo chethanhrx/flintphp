@@ -8,7 +8,7 @@ use FlintPHP\Framework\Cache\Exception\InvalidArgumentException;
 use FlintPHP\Framework\Cache\Exception\InvalidCacheValueException;
 use JsonException;
 
-final class ArrayCache implements CacheInterface
+final class ArrayCache implements CacheInterface, AtomicCounterInterface
 {
     private array $data = [];
 
@@ -82,6 +82,50 @@ final class ArrayCache implements CacheInterface
         }
 
         return true;
+    }
+
+    public function increment(string $key, int $step = 1, ?int $ttl = null): int
+    {
+        $this->validateKey($key);
+
+        if ($step < 1) {
+            throw new InvalidArgumentException('Increment step must be at least 1.');
+        }
+
+        if ($ttl !== null && $ttl <= 0) {
+            throw new InvalidArgumentException('Initial TTL must be greater than 0.');
+        }
+
+        if (isset($this->data[$key])) {
+            $expiresAt = $this->data[$key]['expires_at'];
+            if ($expiresAt !== null && $expiresAt < time()) {
+                unset($this->data[$key]);
+            }
+        }
+
+        if (!isset($this->data[$key])) {
+            $expiresAt = $ttl === null ? null : time() + $ttl;
+            $this->data[$key] = [
+                'value' => json_encode($step, JSON_THROW_ON_ERROR),
+                'expires_at' => $expiresAt,
+            ];
+
+            return $step;
+        }
+
+        try {
+            $current = json_decode($this->data[$key]['value'], true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            $current = 0;
+        }
+
+        $currentInt = is_int($current) ? $current : (is_numeric($current) ? (int) $current : 0);
+        $newValue = $currentInt + $step;
+
+        // Preserve existing expiration
+        $this->data[$key]['value'] = json_encode($newValue, JSON_THROW_ON_ERROR);
+
+        return $newValue;
     }
 
     private function validateKey(string $key): void

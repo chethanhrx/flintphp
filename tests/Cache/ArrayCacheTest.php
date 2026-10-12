@@ -117,4 +117,40 @@ final class ArrayCacheTest extends TestCase
         $this->assertIsArray($result);
         $this->assertSame(['name' => 'Flint', 'version' => 13], $result);
     }
+
+    #[Test]
+    public function it_increments_new_key_with_step_and_ttl(): void
+    {
+        $val = $this->cache->increment('counter', 1, 60);
+        $this->assertSame(1, $val);
+        $this->assertSame(1, $this->cache->get('counter'));
+
+        $val2 = $this->cache->increment('counter', 3);
+        $this->assertSame(4, $val2);
+        $this->assertSame(4, $this->cache->get('counter'));
+    }
+
+    #[Test]
+    public function it_rejects_invalid_increment_step(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->cache->increment('counter', 0);
+    }
+
+    #[Test]
+    public function it_rejects_invalid_increment_ttl(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->cache->increment('counter', 1, 0);
+    }
+
+    #[Test]
+    public function it_reinitializes_expired_key_on_increment(): void
+    {
+        // Set with expired time (ttl = -1 deletes it immediately)
+        $this->cache->set('exp_counter', 10, -1);
+        $val = $this->cache->increment('exp_counter', 5, 60);
+        $this->assertSame(5, $val);
+    }
 }
+

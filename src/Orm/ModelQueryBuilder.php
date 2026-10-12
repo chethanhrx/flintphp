@@ -30,7 +30,7 @@ final class ModelQueryBuilder
 
     private ?int $offset = null;
 
-    private const OPERATORS = ['=', '!=', '<>', '<', '>', '<=', '>=', 'LIKE', 'NOT LIKE', 'IN', 'NOT IN'];
+    private const OPERATORS = ['=', '!=', '<>', '<', '>', '<=', '>=', 'LIKE', 'NOT LIKE', 'IN', 'NOT IN', 'IS', 'IS NOT'];
 
     /**
      * @param class-string<T> $modelClass
@@ -55,6 +55,10 @@ final class ModelQueryBuilder
         $this->validateIdentifier($column);
 
         if (func_num_args() === 2) {
+            if ($operatorOrValue === null) {
+                return $this->whereNull($column);
+            }
+
             $this->wheres[] = ['column' => $column, 'operator' => '=', 'value' => $operatorOrValue];
             $this->parameters[] = $operatorOrValue;
 
@@ -64,6 +68,15 @@ final class ModelQueryBuilder
         $operator = strtoupper((string) $operatorOrValue);
         if (!in_array($operator, self::OPERATORS, true)) {
             throw new InvalidArgumentException(sprintf('Unsupported operator: %s', $operator));
+        }
+
+        if ($value === null) {
+            if ($operator === '=' || $operator === 'IS') {
+                return $this->whereNull($column);
+            }
+            if ($operator === '!=' || $operator === '<>' || $operator === 'IS NOT') {
+                return $this->whereNotNull($column);
+            }
         }
 
         if ($operator === 'IN' || $operator === 'NOT IN') {
@@ -80,6 +93,24 @@ final class ModelQueryBuilder
 
         $this->wheres[] = ['column' => $column, 'operator' => $operator, 'value' => $value];
         $this->parameters[] = $value;
+
+        return $this;
+    }
+
+    /** @return self<T> */
+    public function whereNull(string $column): self
+    {
+        $this->validateIdentifier($column);
+        $this->wheres[] = ['column' => $column, 'operator' => 'IS NULL', 'value' => null];
+
+        return $this;
+    }
+
+    /** @return self<T> */
+    public function whereNotNull(string $column): self
+    {
+        $this->validateIdentifier($column);
+        $this->wheres[] = ['column' => $column, 'operator' => 'IS NOT NULL', 'value' => null];
 
         return $this;
     }
@@ -209,8 +240,12 @@ final class ModelQueryBuilder
         foreach ($this->wheres as $where) {
             $col = $this->quote($where['column']);
             $op = $where['operator'];
-            if ($op === 'IN' || $op === 'NOT IN') {
-                $placeholders = implode(', ', array_fill(0, count($where['value']), '?'));
+            if ($op === 'IS NULL' || $op === 'IS NOT NULL') {
+                $clauses[] = sprintf('%s %s', $col, $op);
+            } elseif ($op === 'IN' || $op === 'NOT IN') {
+                /** @var array<mixed> $inValues */
+                $inValues = (array) $where['value'];
+                $placeholders = implode(', ', array_fill(0, count($inValues), '?'));
                 $clauses[] = sprintf('%s %s (%s)', $col, $op, $placeholders);
             } else {
                 $clauses[] = sprintf('%s %s ?', $col, $op);

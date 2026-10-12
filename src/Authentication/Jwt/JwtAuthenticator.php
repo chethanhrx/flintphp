@@ -17,9 +17,16 @@ final class JwtAuthenticator implements AuthenticatorInterface
 {
     public function __construct(
         private readonly string $secret,
+        private readonly int $leewaySeconds = 0,
+        private readonly ?string $expectedIssuer = null,
+        private readonly ?string $expectedAudience = null,
     ) {
         if ($this->secret === '') {
             throw new \InvalidArgumentException('JWT secret must not be empty');
+        }
+
+        if ($this->leewaySeconds < 0) {
+            throw new \InvalidArgumentException('leewaySeconds must be >= 0');
         }
     }
 
@@ -40,7 +47,13 @@ final class JwtAuthenticator implements AuthenticatorInterface
             throw new InvalidCredentialsException('Bearer token is empty.');
         }
 
-        $claims = HmacJwt::decode($token, $this->secret);
+        $claims = HmacJwt::decode(
+            $token,
+            $this->secret,
+            $this->leewaySeconds,
+            $this->expectedIssuer,
+            $this->expectedAudience
+        );
 
         if (!isset($claims['sub']) || (!is_string($claims['sub']) && !is_int($claims['sub']))) {
             throw new InvalidCredentialsException('JWT missing sub claim');

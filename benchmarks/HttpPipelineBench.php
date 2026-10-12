@@ -41,33 +41,84 @@ final class ScopedTagMiddleware implements \FlintPHP\Framework\Middleware\Middle
     }
 }
 
+function printEnvironment(): void
+{
+    echo "=======================================================================\n";
+    echo " FLINTPHP BENCHMARK HARNESS\n";
+    echo "=======================================================================\n";
+    echo "PHP Version:    " . PHP_VERSION . " (" . PHP_SAPI . ")\n";
+    echo "OS / Kernel:    " . PHP_OS . " (" . php_uname('m') . ")\n";
+    $opcache = function_exists('opcache_get_status') && is_array(opcache_get_status(false));
+    echo "OPcache:        " . ($opcache ? 'Enabled' : 'Disabled / CLI default') . "\n";
+    echo "JIT:            " . (ini_get('opcache.jit') ? ini_get('opcache.jit') : 'Disabled') . "\n";
+    echo "Memory Limit:   " . ini_get('memory_limit') . "\n";
+    echo "=======================================================================\n\n";
+}
+
 function bench(string $label, callable $fn, int $iterations): array
 {
-    // Warmup (JIT/opcache-free CLI is fine; this removes autoloader noise).
-    for ($i = 0; $i < max(100, (int) ($iterations / 10)); $i++) {
+    // Warmup procedure to eliminate autoloader and cache warmup noise
+    $warmupCount = max(100, (int) ($iterations / 10));
+    for ($i = 0; $i < $warmupCount; $i++) {
         $fn();
     }
 
-    $start = hrtime(true);
-    for ($i = 0; $i < $iterations; $i++) {
-        $fn();
+    $samples = [];
+    $sampleCount = min(2000, $iterations);
+    $batchSize = max(1, (int) ($iterations / $sampleCount));
+
+    $startTotal = hrtime(true);
+    for ($s = 0; $s < $sampleCount; $s++) {
+        $t0 = hrtime(true);
+        for ($b = 0; $b < $batchSize; $b++) {
+            $fn();
+        }
+        $samples[] = (hrtime(true) - $t0) / $batchSize / 1000.0; // us per op
     }
-    $elapsedNs = hrtime(true) - $start;
+    $totalElapsedNs = hrtime(true) - $startTotal;
+    $actualOps = $sampleCount * $batchSize;
+
+    sort($samples);
+    $p50 = $samples[(int) ($sampleCount * 0.50)];
+    $p95 = $samples[(int) ($sampleCount * 0.95)];
+    $p99 = $samples[(int) ($sampleCount * 0.99)];
+    $meanUs = ($totalElapsedNs / $actualOps) / 1000.0;
+    $opsPerSec = $actualOps / ($totalElapsedNs / 1_000_000_000.0);
 
     return [
         'label' => $label,
-        'ops' => $iterations,
-        'per_op_us' => $elapsedNs / $iterations / 1000,
+        'ops' => $actualOps,
+        'ops_per_sec' => $opsPerSec,
+        'mean_us' => $meanUs,
+        'p50_us' => $p50,
+        'p95_us' => $p95,
+        'p99_us' => $p99,
     ];
 }
 
 function report(array $results): void
 {
-    printf("%-38s %12s %14s\n", 'BENCHMARK', 'OPS', 'µS/OP');
+    printf(
+        "%-36s %10s %12s %10s %10s %10s %10s\n",
+        'BENCHMARK', 'OPS', 'THROUGHPUT', 'MEAN (µs)', 'P50 (µs)', 'P95 (µs)', 'P99 (µs)'
+    );
+    printf("%s\n", str_repeat('-', 104));
     foreach ($results as $r) {
-        printf("%-38s %12d %14.2f\n", $r['label'], $r['ops'], $r['per_op_us']);
+        printf(
+            "%-36s %10d %10.0f/s %10.2f %10.2f %10.2f %10.2f\n",
+            $r['label'],
+            $r['ops'],
+            $r['ops_per_sec'],
+            $r['mean_us'],
+            $r['p50_us'],
+            $r['p95_us'],
+            $r['p99_us']
+        );
     }
+    echo "\n";
 }
+
+printEnvironment();
 
 // ---------------------------------------------------------------- Request --
 $request = new Request('GET', '/users/42/posts/7', ['Accept' => 'application/json']);

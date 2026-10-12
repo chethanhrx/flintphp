@@ -21,7 +21,7 @@ class QueryTestUser extends Model
     
     public int $id;
     public string $name;
-    public string $email;
+    public ?string $email = null;
     public int $age;
 }
 
@@ -107,5 +107,28 @@ final class ModelQueryBuilderTest extends TestCase
         $this->expectException(ModelNotFoundException::class);
         
         $this->orm->query(QueryTestUser::class)->where('id', 999)->firstOrFail();
+    }
+
+    #[Test]
+    public function it_handles_where_null_and_where_not_null(): void
+    {
+        // Insert record with null email
+        $this->connection->execute('INSERT INTO test_users (name, email, age) VALUES (?, ?, ?)', ['NoEmail', null, 40]);
+
+        $nullUsers = $this->orm->query(QueryTestUser::class)->whereNull('email')->get();
+        $this->assertCount(1, $nullUsers);
+        $this->assertSame('NoEmail', $nullUsers[0]->name);
+
+        $notNullUsers = $this->orm->query(QueryTestUser::class)->whereNotNull('email')->get();
+        $this->assertCount(3, $notNullUsers);
+
+        // Test where('col', null) shorthand
+        $shorthandNull = $this->orm->query(QueryTestUser::class)->where('email', null)->get();
+        $this->assertCount(1, $shorthandNull);
+        $this->assertSame('NoEmail', $shorthandNull[0]->name);
+
+        // Test where('col', '!=', null) shorthand
+        $shorthandNotNull = $this->orm->query(QueryTestUser::class)->where('email', '!=', null)->get();
+        $this->assertCount(3, $shorthandNotNull);
     }
 }
