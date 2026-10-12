@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Enterprise platform phase 1 (explicit composition only).
+
+### Added
+
+- **Database\\Migration\\Migrator** + **MigrationInterface** — versioned up/down,
+  tracked in `flint_migrations`.
+- **ModelQueryBuilder** — operators (`>`, `IN`, `LIKE`, …), `orderBy`, `limit`,
+  `offset`, quoted identifiers.
+- **CorsMiddleware**, **RateLimitMiddleware**, **RequestIdMiddleware**.
+- **Health\\HealthChecker** — build `/health` payloads (optional DB check).
+
 ## [1.1.0] - 2026-10-12
 
 DX and API-usability release. No facades, no discovery, no magic.
