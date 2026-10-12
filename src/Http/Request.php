@@ -269,11 +269,21 @@ final class Request
         );
     }
 
+    public const MAX_BODY_BYTES = 10_485_760; // 10 MiB default body limit
+
     private static function readBody(): string
     {
-        $body = file_get_contents('php://input');
+        $body = @file_get_contents('php://input', false, null, 0, self::MAX_BODY_BYTES + 1);
 
-        return $body !== false ? $body : '';
+        if ($body === false) {
+            return '';
+        }
+
+        if (strlen($body) > self::MAX_BODY_BYTES) {
+            throw new HttpException(413, 'Payload Too Large: request body exceeds 10 MiB limit');
+        }
+
+        return $body;
     }
 
     public function clientIp(): ?string

@@ -147,4 +147,10 @@ final class RequestEdgeCaseTest extends TestCase
         $modified = $request->withHeader('X-Test', 'value');
         $this->assertSame('10.0.0.1', $modified->clientIp());
     }
+
+    #[Test]
+    public function max_body_bytes_constant_is_bounded(): void
+    {
+        $this->assertSame(10_485_760, Request::MAX_BODY_BYTES);
+    }
 }
