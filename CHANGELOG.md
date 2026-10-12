@@ -29,6 +29,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `new ConsoleApplication(false)`. `--help` routes to `help` when built-ins
   are enabled.
 
+- **Phase A Test Hardening**: comprehensive edge-case test suites across
+  the core primitives:
+  - `RouterEdgeCaseTest`: case sensitivity, trailing slashes, regex special
+    characters in path segments, empty router, and multi-parameter 405.
+  - `KernelEdgeCaseTest`: `Error`/`TypeError` boundaries, global + route-scoped
+    middleware ordering ("onion within onion"), post-next exceptions, invalid
+    middleware rejection, and sequential request handling.
+  - `ContainerEdgeCaseTest`: autowiring interface bindings, `has()` negative checks,
+    singleton re-registration cache invalidation, and transient autowiring.
+  - `RequestEdgeCaseTest`: `withHeader` state preservation, consecutive slashes,
+    dot segments, chained immutability, and parameter lookup edge cases.
+  - `ValidatorEdgeCaseTest`: string type rejection, boundary min/max values, email
+    edge cases, case-sensitive `in` rule, and multi-error accumulation.
+  - `PdoConnectionEdgeCaseTest`: transaction state tracking, double commit/rollback
+    prevention, empty result sets, and sequential prepared statement execution.
+  - `ApiLifecycleIntegrationTest`: full JSON POST lifecycle with validation,
+    parameter binding, Bearer auth, database writes, and SQL injection protection.
+
+### Changed
+
+- `Request::path()` now strictly falls back to `'/'` when the parsed URI path
+  is empty string `''`, ensuring uniform absolute path semantics.
+- `Request::query()` and `Request::server()` now verify key existence with
+  `array_key_exists` rather than null-coalescing `??`, correctly distinguishing
+  explicit `null` values from missing parameters.
+
 ### Security
 
 - Console input is treated as untrusted data: hostile argument/option values

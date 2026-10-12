@@ -126,7 +126,7 @@ final class Request
     {
         $path = parse_url($this->uri, PHP_URL_PATH);
 
-        return $path !== null && $path !== false ? $path : '/';
+        return $path !== null && $path !== false && $path !== '' ? $path : '/';
     }
 
     /**
@@ -145,7 +145,7 @@ final class Request
             return $this->query;
         }
 
-        return $this->query[$key] ?? $default;
+        return array_key_exists($key, $this->query) ? $this->query[$key] : $default;
     }
 
     /**
@@ -190,7 +190,7 @@ final class Request
             return $this->server;
         }
 
-        return $this->server[$key] ?? $default;
+        return array_key_exists($key, $this->server) ? $this->server[$key] : $default;
     }
 
     /**
