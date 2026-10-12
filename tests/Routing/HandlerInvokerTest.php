@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FlintPHP\Framework\Tests\Routing;
 
 use FlintPHP\Framework\Container\Container;
+use FlintPHP\Framework\Http\Exception\HttpException;
 use FlintPHP\Framework\Http\Request;
 use FlintPHP\Framework\Http\Response;
 use FlintPHP\Framework\Routing\Exception\InvalidHandlerException;
@@ -28,10 +29,6 @@ final class HandlerInvokerTest extends TestCase
         $this->request = new Request('GET', '/test');
     }
 
-    // ---------------------------------------------------------------
-    // Closures and Legacy BC
-    // ---------------------------------------------------------------
-
     #[Test]
     public function it_invokes_closures_with_request_and_params_array_bc(): void
     {
@@ -40,31 +37,20 @@ final class HandlerInvokerTest extends TestCase
         };
 
         $response = $this->invoker->invoke($handler, $this->request, ['a' => '1', 'b' => '2']);
-
         $this->assertSame('Params: 1,2', $response->body());
     }
-
-    // ---------------------------------------------------------------
-    // Controllers and Auto-wiring
-    // ---------------------------------------------------------------
 
     #[Test]
     public function it_resolves_and_invokes_array_controller(): void
     {
-        $handler = [TestController::class, 'show'];
-
-        $response = $this->invoker->invoke($handler, $this->request, ['id' => '42']);
-
+        $response = $this->invoker->invoke([TestController::class, 'show'], $this->request, ['id' => '42']);
         $this->assertSame('User 42 (Service: yes)', $response->body());
     }
 
     #[Test]
     public function it_resolves_and_invokes_invokable_controller(): void
     {
-        $handler = InvokableController::class;
-
-        $response = $this->invoker->invoke($handler, $this->request, []);
-
+        $response = $this->invoker->invoke(InvokableController::class, $this->request, []);
         $this->assertSame('Invoked', $response->body());
     }
 
@@ -76,7 +62,6 @@ final class HandlerInvokerTest extends TestCase
         };
 
         $response = $this->invoker->invoke($handler, $this->request, ['id' => '10', 'other' => 'abc']);
-
         $this->assertSame('GET 10 abc', $response->body());
     }
 
@@ -89,7 +74,6 @@ final class HandlerInvokerTest extends TestCase
         };
 
         $response = $this->invoker->invoke($handler, $this->request, ['id' => '42', 'score' => '9.5', 'active' => 'true']);
-
         $this->assertSame('int|float|bool', $response->body());
     }
 
@@ -101,7 +85,6 @@ final class HandlerInvokerTest extends TestCase
         };
 
         $response = $this->invoker->invoke($handler, $this->request, []);
-
         $this->assertSame('guest', $response->body());
     }
 
@@ -113,54 +96,36 @@ final class HandlerInvokerTest extends TestCase
         };
 
         $response = $this->invoker->invoke($handler, $this->request, []);
-
         $this->assertSame('null', $response->body());
     }
-
-    // ---------------------------------------------------------------
-    // Exceptions
-    // ---------------------------------------------------------------
 
     #[Test]
     public function it_throws_if_controller_method_is_not_callable(): void
     {
-        $handler = [TestController::class, 'missingMethod'];
-
         $this->expectException(InvalidHandlerException::class);
         $this->expectExceptionMessage('is not callable');
-
-        $this->invoker->invoke($handler, $this->request, []);
+        $this->invoker->invoke([TestController::class, 'missingMethod'], $this->request, []);
     }
 
     #[Test]
     public function it_throws_if_handler_does_not_return_response(): void
     {
-        $handler = function () {
-            return 'not a response object';
-        };
-
         $this->expectException(InvalidHandlerException::class);
         $this->expectExceptionMessage('Handler must return an instance of');
-
-        $this->invoker->invoke($handler, $this->request, []);
+        $this->invoker->invoke(function () {
+            return 'not a response object';
+        }, $this->request, []);
     }
 
     #[Test]
     public function it_throws_if_parameter_cannot_be_resolved(): void
     {
-        $handler = function (string $unknownName): Response {
-            return new Response();
-        };
-
         $this->expectException(UnresolvableParameterException::class);
         $this->expectExceptionMessage('Cannot resolve parameter $unknownName');
-
-        $this->invoker->invoke($handler, $this->request, []);
+        $this->invoker->invoke(function (string $unknownName): Response {
+            return new Response();
+        }, $this->request, []);
     }
-
-    // ---------------------------------------------------------------
-    // Strict Casting and Type Safety Audit Tests
-    // ---------------------------------------------------------------
 
     #[Test]
     public function it_strictly_casts_valid_integers_and_rejects_invalid_ones(): void
@@ -169,14 +134,12 @@ final class HandlerInvokerTest extends TestCase
             return new Response((string) $id);
         };
 
-        // Valid integers
         $this->assertSame('42', $this->invoker->invoke($handler, $this->request, ['id' => '42'])->body());
         $this->assertSame('0', $this->invoker->invoke($handler, $this->request, ['id' => '0'])->body());
         $this->assertSame('-10', $this->invoker->invoke($handler, $this->request, ['id' => '-10'])->body());
 
-        // Invalid integer throws
-        $this->expectException(UnresolvableParameterException::class);
-        $this->expectExceptionMessage('must be an integer, got "abc"');
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('Not Found');
         $this->invoker->invoke($handler, $this->request, ['id' => 'abc']);
     }
 
@@ -185,8 +148,8 @@ final class HandlerInvokerTest extends TestCase
     {
         $handler = fn(int $id) => new Response();
 
-        $this->expectException(UnresolvableParameterException::class);
-        $this->expectExceptionMessage('must be an integer, got "12abc"');
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('Not Found');
         $this->invoker->invoke($handler, $this->request, ['id' => '12abc']);
     }
 
@@ -195,7 +158,8 @@ final class HandlerInvokerTest extends TestCase
     {
         $handler = fn(int $id) => new Response();
 
-        $this->expectException(UnresolvableParameterException::class);
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('Not Found');
         $this->invoker->invoke($handler, $this->request, ['id' => '']);
     }
 
@@ -209,20 +173,16 @@ final class HandlerInvokerTest extends TestCase
         $this->assertSame('N', $this->invoker->invoke($handler, $this->request, ['flag' => 'false'])->body());
         $this->assertSame('N', $this->invoker->invoke($handler, $this->request, ['flag' => '0'])->body());
 
-        $this->expectException(UnresolvableParameterException::class);
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('Not Found');
         $this->invoker->invoke($handler, $this->request, ['flag' => 'not_a_bool']);
     }
 
     #[Test]
     public function route_parameter_cannot_override_class_dependency(): void
     {
-        // Container has TestService.
-        // Route has variable {service} = "hacked"
-        // Method expects TestService $service
-        // The container should resolve it, NOT the route parameter.
-        
         $this->container->set(TestService::class, new TestService());
-        
+
         $handler = function (TestService $service): Response {
             return new Response($service->check());
         };
@@ -234,24 +194,17 @@ final class HandlerInvokerTest extends TestCase
     #[Test]
     public function unresolvable_class_dependency_does_not_fallback_to_route_parameter(): void
     {
-        // UnboundService is NOT in container and not auto-wireable (no constructor/etc) 
-        // OR let's just make it an interface
         $handler = function (UnboundInterface $dependency): Response {
             return new Response();
         };
 
         $this->expectException(UnresolvableParameterException::class);
         $this->expectExceptionMessage('Cannot resolve class dependency');
-        
         $this->invoker->invoke($handler, $this->request, ['dependency' => 'some_string']);
     }
 }
 
 interface UnboundInterface {}
-
-// ---------------------------------------------------------------
-// Stubs
-// ---------------------------------------------------------------
 
 class TestService
 {
