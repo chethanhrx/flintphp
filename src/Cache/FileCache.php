@@ -232,11 +232,6 @@ final class FileCache implements CacheInterface, AtomicCounterInterface
         }
     }
 
-    private function path(string $key): string
-    {
-        return $this->pathForHash(hash('sha256', $key));
-    }
-
     private function pathForHash(string $hash): string
     {
         return rtrim($this->directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $hash . '.json';
