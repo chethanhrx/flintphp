@@ -21,6 +21,7 @@ use JsonException;
  * - Immutable: withX() returns new instances
  * - Status codes validated: must be 100–599
  * - JSON factory: Response::json() for API responses
+ * - Error factory: Response::error() for consistent API errors
  * - Testable: send() can be avoided in tests
  */
 final class Response
@@ -84,6 +85,29 @@ final class Response
             status: $status,
             headers: $headerBag,
         );
+    }
+
+    /**
+     * Create a consistent JSON error response for APIs.
+     *
+     * Shape: {"error":{"message":"...","status":400,"code":"optional"}}
+     *
+     * @param string      $message Public, client-safe error message
+     * @param int         $status  HTTP status code
+     * @param string|null $code    Optional machine-readable error code
+     */
+    public static function error(string $message, int $status = 400, ?string $code = null): self
+    {
+        $error = [
+            'message' => $message,
+            'status' => $status,
+        ];
+
+        if ($code !== null && $code !== '') {
+            $error['code'] = $code;
+        }
+
+        return self::json(['error' => $error], $status);
     }
 
     /**
