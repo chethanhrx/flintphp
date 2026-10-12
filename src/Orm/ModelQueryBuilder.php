@@ -46,21 +46,13 @@ final class ModelQueryBuilder
     }
 
     /**
+     * where('col', $value) or where('col', '>', $value) or where('col', 'IN', [1,2]).
+     *
      * @return self<T>
      */
     public function where(string $column, mixed $operatorOrValue, mixed $value = null): self
     {
         $this->validateIdentifier($column);
-
-        if ($value === null && !is_string($operatorOrValue) || ($value === null && is_string($operatorOrValue) && !in_array(strtoupper($operatorOrValue), self::OPERATORS, true) && func_num_args() === 2)) {
-            // where($col, $value) → =
-            if (func_num_args() === 2) {
-                $this->wheres[] = ['column' => $column, 'operator' => '=', 'value' => $operatorOrValue];
-                $this->parameters[] = $operatorOrValue;
-
-                return $this;
-            }
-        }
 
         if (func_num_args() === 2) {
             $this->wheres[] = ['column' => $column, 'operator' => '=', 'value' => $operatorOrValue];
@@ -130,9 +122,7 @@ final class ModelQueryBuilder
     /** @return array<int, T> */
     public function get(): array
     {
-        $sql = $this->buildSelectSql();
-        $rows = $this->connection->fetchAll($sql, $this->parameters);
-
+        $rows = $this->connection->fetchAll($this->buildSelectSql(), $this->parameters);
         $models = [];
         foreach ($rows as $row) {
             $models[] = $this->hydrator->hydrate($this->modelClass, $row);
@@ -146,27 +136,21 @@ final class ModelQueryBuilder
     {
         $builder = clone $this;
         $builder->limit = 1;
-        $sql = $builder->buildSelectSql();
-        $row = $this->connection->fetch($sql, $builder->parameters);
+        $row = $this->connection->fetch($builder->buildSelectSql(), $builder->parameters);
 
-        if ($row === null) {
-            return null;
-        }
-
-        return $this->hydrator->hydrate($this->modelClass, $row);
+        return $row === null ? null : $this->hydrator->hydrate($this->modelClass, $row);
     }
 
     /** @return T */
     public function firstOrFail(): Model
     {
         $model = $this->first();
-
         if ($model === null) {
             $id = 'unknown';
             $pk = $this->modelInstance->getPrimaryKey();
             foreach ($this->wheres as $where) {
-                if ($where['column'] === $pk) {
-                    $id = is_scalar($where['value']) ? (string) $where['value'] : 'unknown';
+                if ($where['column'] === $pk && is_scalar($where['value'])) {
+                    $id = (string) $where['value'];
                     break;
                 }
             }
@@ -179,16 +163,12 @@ final class ModelQueryBuilder
 
     public function count(): int
     {
-        $sql = $this->buildAggregateSql('COUNT(*)');
-
-        return (int) $this->connection->fetchColumn($sql, $this->parameters);
+        return (int) $this->connection->fetchColumn($this->buildAggregateSql('COUNT(*)'), $this->parameters);
     }
 
     public function exists(): bool
     {
-        $sql = $this->buildAggregateSql('1') . ' LIMIT 1';
-
-        return $this->connection->fetchColumn($sql, $this->parameters) !== false;
+        return $this->connection->fetchColumn($this->buildAggregateSql('1') . ' LIMIT 1', $this->parameters) !== false;
     }
 
     private function buildSelectSql(): string
@@ -207,7 +187,6 @@ final class ModelQueryBuilder
         if ($this->limit !== null) {
             $sql .= ' LIMIT ' . $this->limit;
         }
-
         if ($this->offset !== null) {
             $sql .= ' OFFSET ' . $this->offset;
         }
@@ -217,9 +196,7 @@ final class ModelQueryBuilder
 
     private function buildAggregateSql(string $expression): string
     {
-        $sql = sprintf('SELECT %s FROM %s', $expression, $this->quote($this->table));
-
-        return $this->appendWheres($sql);
+        return $this->appendWheres(sprintf('SELECT %s FROM %s', $expression, $this->quote($this->table)));
     }
 
     private function appendWheres(string $sql): string
@@ -232,7 +209,6 @@ final class ModelQueryBuilder
         foreach ($this->wheres as $where) {
             $col = $this->quote($where['column']);
             $op = $where['operator'];
-
             if ($op === 'IN' || $op === 'NOT IN') {
                 $placeholders = implode(', ', array_fill(0, count($where['value']), '?'));
                 $clauses[] = sprintf('%s %s (%s)', $col, $op, $placeholders);
@@ -246,7 +222,6 @@ final class ModelQueryBuilder
 
     private function quote(string $identifier): string
     {
-        // Double-quote for SQL standard; SQLite/Postgres accept; MySQL in ANSI mode too.
         return '"' . $identifier . '"';
     }
 
