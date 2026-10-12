@@ -4,22 +4,28 @@ declare(strict_types=1);
 
 namespace FlintPHP\Framework\Queue;
 
+use Throwable;
+
 /**
  * Processes jobs from a queue.
+ *
+ * For DatabaseQueue + ReservedJob: failed jobs are released (retry) or failed
+ * (dead-letter) based on maxAttempts. ArrayQueue behaviour is unchanged:
+ * exceptions propagate and the job is already removed.
  */
 final class Worker
 {
+    public function __construct(
+        private readonly int $maxAttempts = 3,
+        private readonly int $retryDelaySeconds = 10,
+    ) {
+        if ($this->maxAttempts < 1) {
+            throw new \InvalidArgumentException('maxAttempts must be >= 1');
+        }
+    }
+
     /**
-     * Attempt to process a single job from the given queue.
-     *
-     * If the queue is empty, returns false without doing anything.
-     * If a job is available, calls handle() on the job and returns true.
-     *
-     * Note: If handle() throws an exception, the exception propagates up naturally.
-     * The job is already removed from the queue and will not be retried automatically.
-     *
-     * @param QueueInterface $queue The queue to process from.
-     * @return bool True if a job was processed, false if the queue was empty.
+     * Process one job. Returns true if a job was taken from the queue.
      */
     public function runOnce(QueueInterface $queue): bool
     {
@@ -29,8 +35,36 @@ final class Worker
             return false;
         }
 
-        $job->handle();
+        try {
+            $job->handle();
+        } catch (Throwable $e) {
+            if ($job instanceof ReservedJob) {
+                if ($job->attempts() + 1 < $this->maxAttempts) {
+                    $job->release($this->retryDelaySeconds);
+                } else {
+                    $job->fail($e->getMessage());
+                }
+
+                return true;
+            }
+
+            throw $e;
+        }
 
         return true;
+    }
+
+    /**
+     * Process up to $max jobs. Returns number of jobs processed.
+     */
+    public function run(QueueInterface $queue, int $max = 100): int
+    {
+        $processed = 0;
+
+        while ($processed < $max && $this->runOnce($queue)) {
+            $processed++;
+        }
+
+        return $processed;
     }
 }
