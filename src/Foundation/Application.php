@@ -11,24 +11,12 @@ use FlintPHP\Framework\Http\Exception\ExceptionHandler;
 use FlintPHP\Framework\Http\Exception\ExceptionHandlerInterface;
 use FlintPHP\Framework\Http\Kernel;
 use FlintPHP\Framework\Middleware\MiddlewareStack;
+use FlintPHP\Framework\Observability\Contract\LoggerInterface;
+use FlintPHP\Framework\Observability\Logging\ErrorLogLogger;
 use FlintPHP\Framework\Routing\HandlerInvoker;
 use FlintPHP\Framework\Routing\Router;
 use LogicException;
 
-/**
- * The FlintPHP Application.
- *
- * This is the central entry point for the framework. It coordinates
- * the bootstrap process and holds the application's base path.
- *
- * Design philosophy:
- * - Thin coordinator, NOT a god object or service locator.
- * - Explicit HTTP composition root: inherently owns and registers the core
- *   HTTP foundation (Container, Router, Kernel, MiddlewareStack, ExceptionHandler).
- * - Extensible via single-phase bootstrappers, avoiding complex lifecycle magic.
- * - Final class: extending Application is an anti-pattern.
- *   Use composition and the container instead.
- */
 final class Application
 {
     private bool $booted = false;
@@ -43,12 +31,6 @@ final class Application
     private array $globalMiddlewares = [];
     private bool $middlewareStackFrozen = false;
 
-    /**
-     * Create a new FlintPHP application instance.
-     *
-     * @param string $basePath The root directory of the application.
-     * @param ConfigRepositoryInterface|null $config Explicit configuration repository.
-     */
     public function __construct(
         private readonly string $basePath,
         ?ConfigRepositoryInterface $config = null,
@@ -58,9 +40,12 @@ final class Application
 
         $this->container->singleton(ConfigRepositoryInterface::class, $this->config);
 
+        $logger = new ErrorLogLogger();
+        $this->container->singleton(LoggerInterface::class, $logger);
+
         $this->router = new Router();
         $invoker = new HandlerInvoker($this->container);
-        $this->exceptionHandler = new ExceptionHandler();
+        $this->exceptionHandler = new ExceptionHandler($logger);
 
         $this->container->singleton(Router::class, $this->router);
         $this->container->singleton(HandlerInvoker::class, $invoker);
@@ -131,11 +116,6 @@ final class Application
         return $this->kernel;
     }
 
-    /**
-     * Register a global middleware class.
-     *
-     * @throws LogicException If the HTTP pipeline has already been finalized.
-     */
     public function addMiddleware(string $middlewareClass): void
     {
         if ($this->middlewareStackFrozen) {
@@ -150,14 +130,6 @@ final class Application
         return $this->exceptionHandler;
     }
 
-    /**
-     * Replace the exception handler before the Kernel is built.
-     *
-     * Typical use for API apps:
-     *   $app->setExceptionHandler(new JsonExceptionHandler());
-     *
-     * @throws LogicException If kernel() has already been resolved.
-     */
     public function setExceptionHandler(ExceptionHandlerInterface $handler): void
     {
         if ($this->kernel !== null) {
@@ -170,11 +142,6 @@ final class Application
         $this->container->singleton(ExceptionHandlerInterface::class, $handler);
     }
 
-    /**
-     * @param array $bootstrappers An array of BootstrapperInterface instances.
-     *
-     * @throws \InvalidArgumentException If an element is not a BootstrapperInterface.
-     */
     public function bootstrapWith(array $bootstrappers): void
     {
         foreach ($bootstrappers as $bootstrapper) {
