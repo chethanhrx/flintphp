@@ -215,5 +215,62 @@ final class FileCacheTest extends TestCase
         $expected = $numProcesses * $incrementsPerProcess;
         $this->assertSame($expected, $finalValue);
     }
-}
 
+    #[Test]
+    public function cache_data_and_lock_files_are_private(): void
+    {
+        $this->assertTrue($this->cache->set('private_key', 'secret'));
+        $dataPath = $this->cacheDir . DIRECTORY_SEPARATOR . hash('sha256', 'private_key') . '.json';
+        $lockPath = $this->cacheDir . DIRECTORY_SEPARATOR . hash('sha256', 'private_key') . '.lock';
+
+        clearstatcache(true, $dataPath);
+        clearstatcache(true, $lockPath);
+
+        $this->assertFileExists($dataPath);
+        $this->assertFileExists($lockPath);
+        $this->assertSame(0600, fileperms($dataPath) & 0777);
+        $this->assertSame(0600, fileperms($lockPath) & 0777);
+    }
+
+    #[Test]
+    public function concurrent_atomic_increments_survive_atomic_file_replacement(): void
+    {
+        $this->assertTrue($this->cache->set('shared_counter', 0, 60));
+
+        $numProcesses = 6;
+        $incrementsPerProcess = 40;
+        $autoloadPath = dirname(__DIR__, 2) . '/vendor/autoload.php';
+        $workers = [];
+
+        for ($i = 0; $i < $numProcesses; $i++) {
+            $cmd = sprintf(
+                'php -r "require %s; $c = new FlintPHP\\\\Framework\\\\Cache\\\\FileCache(%s); for ($j = 0; $j < %d; $j++) { $c->increment(\\'shared_counter\\', 1, 60); }"',
+                escapeshellarg($autoloadPath),
+                escapeshellarg($this->cacheDir),
+                $incrementsPerProcess
+            );
+
+            $proc = proc_open($cmd, [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ], $pipes);
+
+            $this->assertIsResource($proc, 'Could not start concurrent cache worker.');
+            $workers[] = ['proc' => $proc, 'pipes' => $pipes];
+        }
+
+        foreach ($workers as $worker) {
+            fclose($worker['pipes'][0]);
+            $stdout = stream_get_contents($worker['pipes'][1]);
+            $stderr = stream_get_contents($worker['pipes'][2]);
+            fclose($worker['pipes'][1]);
+            fclose($worker['pipes'][2]);
+            $exitCode = proc_close($worker['proc']);
+
+            $this->assertSame(0, $exitCode, 'Cache worker failed. stdout=' . $stdout . ' stderr=' . $stderr);
+        }
+
+        $this->assertSame(0 + ($numProcesses * $incrementsPerProcess), $this->cache->get('shared_counter'));
+    }
+}
