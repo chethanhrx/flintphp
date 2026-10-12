@@ -28,7 +28,6 @@ final class RouteScopedMiddlewareTest extends TestCase
     public function route_defaults_to_empty_middleware(): void
     {
         $route = new Route('GET', '/users', fn (): Response => new Response());
-
         $this->assertSame([], $route->middleware());
     }
 
@@ -36,7 +35,6 @@ final class RouteScopedMiddlewareTest extends TestCase
     public function route_accepts_and_normalizes_middleware_list(): void
     {
         $route = new Route('GET', '/users', fn (): Response => new Response(), null, ['AuthMiddleware']);
-
         $this->assertSame(['AuthMiddleware'], $route->middleware());
     }
 
@@ -44,7 +42,6 @@ final class RouteScopedMiddlewareTest extends TestCase
     public function route_rejects_non_string_middleware_entries(): void
     {
         $this->expectException(RoutingException::class);
-
         new Route('GET', '/users', fn (): Response => new Response(), null, [42]);
     }
 
@@ -52,25 +49,17 @@ final class RouteScopedMiddlewareTest extends TestCase
     public function route_rejects_empty_string_middleware_entries(): void
     {
         $this->expectException(RoutingException::class);
-
         new Route('GET', '/users', fn (): Response => new Response(), null, ['']);
     }
 
     #[Test]
-    public function withMiddleware_returns_new_instance_preserving_original(): void
+    public function middleware_is_set_only_via_constructor(): void
     {
         $handler = fn (): Response => new Response();
-        $route = new Route('GET', '/users/{id}', $handler, 'users.show', ['A']);
+        $route = new Route('GET', '/users/{id}', $handler, 'users.show', ['A', 'B']);
 
-        $derived = $route->withMiddleware(['B', 'C']);
-
-        $this->assertNotSame($route, $derived);
-        $this->assertSame(['A'], $route->middleware());
-        $this->assertSame(['A', 'B', 'C'], $derived->middleware());
-        $this->assertSame($handler, $derived->handler());
-        $this->assertSame('users.show', $derived->name());
-        $this->assertSame('/users/{id}', $derived->pattern());
-        $this->assertSame('GET', $derived->method());
+        $this->assertSame(['A', 'B'], $route->middleware());
+        $this->assertFalse(method_exists($route, 'withMiddleware'));
     }
 
     #[Test]
@@ -257,8 +246,6 @@ final class RouteScopedMiddlewareTest extends TestCase
 
         $response = $kernel->handle(new Request('GET', '/users/7'));
 
-        // Typed route parameters still resolve, and attributes set by scoped
-        // middleware flow into the handler (the property authentication relies on).
         $this->assertSame(200, $response->status());
         $this->assertSame('user:7|marker:app-kernel', $response->body());
     }
