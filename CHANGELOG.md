@@ -7,48 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Enterprise platform phase 1 (explicit composition only).
+Enterprise platform phase 1 + 2 (explicit composition only).
 
 ### Added
 
-- **Database\\Migration\\Migrator** + **MigrationInterface** — versioned up/down,
-  tracked in `flint_migrations`.
-- **ModelQueryBuilder** — operators (`>`, `IN`, `LIKE`, …), `orderBy`, `limit`,
-  `offset`, quoted identifiers.
+- **Database\\Migration\\Migrator** + **MigrationInterface** — versioned up/down.
+- **ModelQueryBuilder** — operators, `orderBy`, `limit`, `offset`, quoted ids.
 - **CorsMiddleware**, **RateLimitMiddleware**, **RequestIdMiddleware**.
-- **Health\\HealthChecker** — build `/health` payloads (optional DB check).
+- **Health\\HealthChecker**.
+- **Queue\\DatabaseQueue** + **SerializableJobInterface** + **ReservedJob**.
+- **Worker** retries / dead-letter for database jobs.
+- **Console\\Command\\MigrateCommand** (register in your app console).
 
 ## [1.1.0] - 2026-10-12
 
-DX and API-usability release. No facades, no discovery, no magic.
-
-### Added
-
-- **Application::setExceptionHandler()** — replace the exception handler before
-  `kernel()` is built (e.g. `JsonExceptionHandler` for APIs).
-- **Config\\Env** — explicit `.env` file loader (returns a map; no auto-injection).
-- **Config\\PhpFileLoader** — load `config/*.php` files into a nested array for
-  `ConfigRepository`.
-- **Response::error()** — consistent API error JSON:
-  `{"error":{"message":"...","status":400,"code":"optional"}}`.
-- **JsonExceptionHandler** — exception boundary that always returns JSON errors;
-  unexpected failures stay generic 500 with no internal disclosure.
-- CLI: `bin/flint`, `ParsedInput` options, built-in `list` / `help`.
-- Expanded test coverage (edge cases, Env, Response::error, handler replacement,
-  PhpFileLoader).
-
-### Changed
-
-- **Kernel** 404 / 405 responses now use `Response::error()` (JSON). 405 still
-  sets the `Allow` header.
-- `Request::path()` empty-path fallback to `/`.
-- `Request::query()` / `server()` use `array_key_exists` semantics.
-- Framework version constant set to **1.1.0**.
-
-### Security
-
-- Console input treated as untrusted opaque data (never executed).
+DX and API-usability release. See git history for details.
 
 ## [1.0.0] - 2026-09-06
 
-First stable release. See git history for the full feature list and deferred items.
+First stable release.
