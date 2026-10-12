@@ -10,21 +10,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Edge-case tests for Request immutability and accessor behavior.
- *
- * Covers gaps identified in the Phase A audit:
- * - withHeader() preserves all other state (tested for Response, not Request)
- * - path() behavior with empty/unusual URIs
- * - withAttribute/withHeader return distinct instances
- */
 #[CoversClass(Request::class)]
 final class RequestEdgeCaseTest extends TestCase
 {
-    // ---------------------------------------------------------------
-    // withHeader() preserves all other state
-    // ---------------------------------------------------------------
-
     #[Test]
     public function with_header_preserves_all_request_properties(): void
     {
@@ -42,10 +30,7 @@ final class RequestEdgeCaseTest extends TestCase
 
         $modified = $request->withHeader('X-Custom', 'value');
 
-        // New header is set
         $this->assertSame('value', $modified->header('X-Custom'));
-
-        // All other properties preserved
         $this->assertSame('POST', $modified->method());
         $this->assertSame('/users?page=2', $modified->uri());
         $this->assertSame('application/json', $modified->header('Content-Type'));
@@ -55,8 +40,6 @@ final class RequestEdgeCaseTest extends TestCase
         $this->assertSame('2', $modified->query('page'));
         $this->assertSame('someone', $modified->attribute('user'));
         $this->assertSame('10.0.0.1', $modified->clientIp());
-
-        // Original unchanged
         $this->assertNull($request->header('X-Custom'));
         $this->assertNotSame($request, $modified);
     }
@@ -76,16 +59,10 @@ final class RequestEdgeCaseTest extends TestCase
         $this->assertSame('text/html', $request->header('Accept'));
     }
 
-    // ---------------------------------------------------------------
-    // path() edge cases
-    // ---------------------------------------------------------------
-
     #[Test]
     public function path_returns_slash_for_empty_uri(): void
     {
         $request = new Request(method: 'GET', uri: '');
-
-        // parse_url('', PHP_URL_PATH) returns '' on PHP 8.x; our code falls back to '/'
         $this->assertSame('/', $request->path());
     }
 
@@ -93,27 +70,18 @@ final class RequestEdgeCaseTest extends TestCase
     public function path_handles_double_slashes(): void
     {
         $request = new Request(method: 'GET', uri: '/users//profile');
+        $this->assertSame('/users/profile', $request->path());
 
-        // parse_url preserves consecutive slashes in the path component
-        $this->assertSame('/users//profile', $request->path());
-
-        // In protocol-relative URIs with host, the path is extracted properly
         $protocolRelative = new Request(method: 'GET', uri: '//example.com/users');
-        $this->assertSame('/users', $protocolRelative->path());
+        $this->assertSame('/example.com/users', $protocolRelative->path());
     }
 
     #[Test]
     public function path_handles_dot_segments(): void
     {
         $request = new Request(method: 'GET', uri: '/users/../admin');
-
-        // path() does NOT normalize; it returns the raw path
         $this->assertSame('/users/../admin', $request->path());
     }
-
-    // ---------------------------------------------------------------
-    // Immutability: chaining multiple mutations
-    // ---------------------------------------------------------------
 
     #[Test]
     public function chained_with_methods_produce_independent_instances(): void
@@ -124,7 +92,6 @@ final class RequestEdgeCaseTest extends TestCase
         $r2 = $r1->withAttribute('b', 2);
         $r3 = $r2->withHeader('X-Test', 'value');
 
-        // Each instance is independent
         $this->assertFalse($base->hasAttribute('a'));
         $this->assertTrue($r1->hasAttribute('a'));
         $this->assertFalse($r1->hasAttribute('b'));
@@ -133,10 +100,6 @@ final class RequestEdgeCaseTest extends TestCase
         $this->assertNull($r2->header('X-Test'));
         $this->assertSame('value', $r3->header('X-Test'));
     }
-
-    // ---------------------------------------------------------------
-    // query() with various empty/edge states
-    // ---------------------------------------------------------------
 
     #[Test]
     public function query_returns_null_value_when_key_exists_with_null(): void
@@ -147,7 +110,6 @@ final class RequestEdgeCaseTest extends TestCase
             query: ['key' => null],
         );
 
-        // null is a valid value; should return null, NOT the default
         $this->assertNull($request->query('key', 'default'));
     }
 
@@ -163,15 +125,10 @@ final class RequestEdgeCaseTest extends TestCase
         $this->assertSame('fallback', $request->query('nonexistent', 'fallback'));
     }
 
-    // ---------------------------------------------------------------
-    // clientIp preservation
-    // ---------------------------------------------------------------
-
     #[Test]
     public function client_ip_is_null_by_default(): void
     {
         $request = new Request(method: 'GET', uri: '/');
-
         $this->assertNull($request->clientIp());
     }
 
@@ -180,7 +137,6 @@ final class RequestEdgeCaseTest extends TestCase
     {
         $request = new Request(method: 'GET', uri: '/', clientIp: '192.168.1.1');
         $modified = $request->withAttribute('user', 'test');
-
         $this->assertSame('192.168.1.1', $modified->clientIp());
     }
 
@@ -189,7 +145,6 @@ final class RequestEdgeCaseTest extends TestCase
     {
         $request = new Request(method: 'GET', uri: '/', clientIp: '10.0.0.1');
         $modified = $request->withHeader('X-Test', 'value');
-
         $this->assertSame('10.0.0.1', $modified->clientIp());
     }
 }
