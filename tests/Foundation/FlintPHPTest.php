@@ -16,24 +16,13 @@ final class FlintPHPTest extends TestCase
     public function it_returns_the_framework_name(): void
     {
         $this->assertSame('FlintPHP', FlintPHP::name());
+        $this->assertSame('FlintPHP', FlintPHP::NAME);
     }
 
     #[Test]
     public function it_returns_the_framework_version(): void
     {
-        $this->assertSame('1.0.0', FlintPHP::VERSION);
-        $this->assertSame('1.0.0', FlintPHP::version());
-    }
-
-    #[Test]
-    public function name_constant_matches_name_method(): void
-    {
-        $this->assertSame(FlintPHP::NAME, FlintPHP::name());
-    }
-
-    #[Test]
-    public function version_constant_matches_version_method(): void
-    {
-        $this->assertSame(FlintPHP::VERSION, FlintPHP::version());
+        $this->assertSame('1.1.0', FlintPHP::version());
+        $this->assertSame('1.1.0', FlintPHP::VERSION);
     }
 }
