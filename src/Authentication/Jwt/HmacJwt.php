@@ -123,22 +123,29 @@ final class HmacJwt
         $now = $currentTime ?? time();
 
         // Enforce required expiration
-        if (!array_key_exists('exp', $payload) || (!is_int($payload['exp']) && (!is_string($payload['exp']) || !is_numeric($payload['exp'])))) {
+        if (
+            !array_key_exists('exp', $payload)
+            || (!is_int($payload['exp']) && !is_float($payload['exp']))
+            || (is_float($payload['exp']) && !is_finite($payload['exp']))
+        ) {
             throw new InvalidCredentialsException('Missing or invalid JWT exp claim');
         }
 
-        $exp = (int) $payload['exp'];
+        $exp = $payload['exp'];
         if ($now >= $exp + $leewaySeconds) {
             throw new InvalidCredentialsException('JWT has expired');
         }
 
         // Validate nbf (not before) if present
         if (array_key_exists('nbf', $payload)) {
-            if (!is_int($payload['nbf']) && (!is_string($payload['nbf']) || !is_numeric($payload['nbf']))) {
+            if (
+                (!is_int($payload['nbf']) && !is_float($payload['nbf']))
+                || (is_float($payload['nbf']) && !is_finite($payload['nbf']))
+            ) {
                 throw new InvalidCredentialsException('Invalid JWT nbf claim');
             }
 
-            $nbf = (int) $payload['nbf'];
+            $nbf = $payload['nbf'];
             if ($now < $nbf - $leewaySeconds) {
                 throw new InvalidCredentialsException('JWT cannot be used yet (nbf)');
             }
@@ -146,11 +153,14 @@ final class HmacJwt
 
         // Validate iat (issued at) if present
         if (array_key_exists('iat', $payload)) {
-            if (!is_int($payload['iat']) && (!is_string($payload['iat']) || !is_numeric($payload['iat']))) {
+            if (
+                (!is_int($payload['iat']) && !is_float($payload['iat']))
+                || (is_float($payload['iat']) && !is_finite($payload['iat']))
+            ) {
                 throw new InvalidCredentialsException('Invalid JWT iat claim');
             }
 
-            $iat = (int) $payload['iat'];
+            $iat = $payload['iat'];
             if ($iat > $now + $leewaySeconds) {
                 throw new InvalidCredentialsException('JWT iat is in the future');
             }

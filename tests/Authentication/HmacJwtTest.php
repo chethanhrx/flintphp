@@ -383,4 +383,41 @@ final class HmacJwtTest extends TestCase
 
         HmacJwt::decode($token, 'wrong-secret');
     }
+
+    #[Test]
+    public function it_rejects_numeric_string_exp_that_could_overflow_integer_cast(): void
+    {
+        $header = rtrim(strtr(base64_encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT'])), '+/', '-_'), '=');
+        $payload = rtrim(strtr(base64_encode(json_encode(['sub' => '1', 'exp' => '1e999'])), '+/', '-_'), '=');
+        $data = $header . '.' . $payload;
+        $sig = rtrim(strtr(base64_encode(hash_hmac('sha256', $data, self::SECRET, true)), '+/', '-_'), '=');
+        $token = $data . '.' . $sig;
+
+        $this->expectException(InvalidCredentialsException::class);
+        $this->expectExceptionMessage('Missing or invalid JWT exp claim');
+
+        HmacJwt::decode($token, self::SECRET, currentTime: 1700000000);
+    }
+
+    #[Test]
+    public function it_rejects_numeric_string_nbf_claim(): void
+    {
+        $token = HmacJwt::encode(['sub' => '1', 'nbf' => '1700000000'], self::SECRET);
+
+        $this->expectException(InvalidCredentialsException::class);
+        $this->expectExceptionMessage('Invalid JWT nbf claim');
+
+        HmacJwt::decode($token, self::SECRET);
+    }
+
+    #[Test]
+    public function it_rejects_numeric_string_iat_claim(): void
+    {
+        $token = HmacJwt::encode(['sub' => '1', 'iat' => '1700000000'], self::SECRET);
+
+        $this->expectException(InvalidCredentialsException::class);
+        $this->expectExceptionMessage('Invalid JWT iat claim');
+
+        HmacJwt::decode($token, self::SECRET);
+    }
 }
