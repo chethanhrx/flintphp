@@ -87,7 +87,6 @@ final class ModelHydrator
      * @template T of Model
      * @param class-string<T> $class
      * @return ReflectionClass<T>
-     * @throws ReflectionException
      */
     private function getReflectionClass(string $class): ReflectionClass
     {

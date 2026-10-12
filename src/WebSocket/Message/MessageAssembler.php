@@ -100,7 +100,7 @@ final class MessageAssembler
                 throw new ProtocolException('CONTINUATION frame received without an active fragmented message.');
             }
 
-            if ($this->isFragmented && ($opcode === Opcode::TEXT || $opcode === Opcode::BINARY)) {
+            if ($this->isFragmented) {
                 throw new ProtocolException('TEXT or BINARY frame received during an active fragmented message.');
             }
 

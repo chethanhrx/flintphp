@@ -4,24 +4,15 @@ declare(strict_types=1);
 
 namespace FlintPHP\Framework\Authentication;
 
-use RuntimeException;
-
 final class PasswordHasher
 {
     /**
      * @param string $password
      * @return string
-     * @throws RuntimeException
      */
     public function hash(string $password): string
     {
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-
-        if ($hash === false || $hash === '') {
-            throw new RuntimeException('Failed to hash password.');
-        }
-
-        return $hash;
+        return password_hash($password, PASSWORD_DEFAULT);
     }
 
     /**
