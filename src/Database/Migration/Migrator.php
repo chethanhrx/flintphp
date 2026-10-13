@@ -163,7 +163,7 @@ final class Migrator
     {
         $this->connection->execute(
             'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (
-                id TEXT PRIMARY KEY NOT NULL,
+                id VARCHAR(191) PRIMARY KEY NOT NULL,
                 applied_at TEXT NOT NULL,
                 sequence INTEGER NOT NULL DEFAULT 0
             )'
@@ -216,7 +216,7 @@ final class Migrator
 
     private function assertSafeId(string $id): void
     {
-        if ($id === '' || preg_match('/\A[a-zA-Z0-9_\-]+\z/', $id) !== 1) {
+        if ($id === '' || strlen($id) > 191 || preg_match('/\A[a-zA-Z0-9_\-]+\z/', $id) !== 1) {
             throw new InvalidArgumentException(sprintf('Invalid migration id: "%s"', $id));
         }
     }
