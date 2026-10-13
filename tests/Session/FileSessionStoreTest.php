@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace FlintPHP\\Framework\\Tests\\Session;
+namespace FlintPHP\Framework\Tests\Session;
 
-use FlintPHP\\Framework\\Session\\Store\\FileSessionStore;
-use PHPUnit\\Framework\\Attributes\\CoversClass;
-use PHPUnit\\Framework\\Attributes\\Test;
-use PHPUnit\\Framework\\TestCase;
+use FlintPHP\Framework\Session\Store\FileSessionStore;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 #[CoversClass(FileSessionStore::class)]
