@@ -18,16 +18,28 @@ final class FileSessionStore implements SessionStoreInterface
 {
     public function __construct(private readonly string $directory)
     {
-        if (!is_dir($this->directory) && !@mkdir($this->directory, 0700, true) && !is_dir($this->directory)) {
-            throw new RuntimeException('Unable to create the session storage directory.');
+        $created = false;
+
+        if (!is_dir($this->directory)) {
+            if (!@mkdir($this->directory, 0700, true) && !is_dir($this->directory)) {
+                throw new RuntimeException('Unable to create the session storage directory.');
+            }
+
+            $created = true;
         }
 
         if (!is_dir($this->directory) || is_link($this->directory)) {
             throw new RuntimeException('Session storage path must be a real directory, not a symbolic link.');
         }
 
-        if (!@chmod($this->directory, 0700)) {
+        if ($created && !@chmod($this->directory, 0700)) {
             throw new RuntimeException('Unable to secure session storage directory permissions.');
+        }
+
+        $permissions = fileperms($this->directory);
+
+        if ($permissions === false || ($permissions & 0077) !== 0) {
+            throw new RuntimeException('Session storage directory must not grant group or other permissions.');
         }
 
         if (!is_writable($this->directory)) {
