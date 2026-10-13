@@ -30,8 +30,9 @@ ones:
 
 - HTTP header values are validated against RFC 7230 field-value grammar
   (response-splitting control characters are rejected).
-- The Kernel exception boundary never discloses internal exception details in
-  production responses; only `HttpException` messages are surfaced.
+- The Kernel exception boundary does not disclose unexpected internal
+  exception details in production responses; only `HttpException` messages
+  are surfaced.
 - Authentication credentials are hashed before provider lookup and compared
   using constant-time `hash_equals`.
 - Authorization enforcement is fail-closed: denials, authorizer exceptions,
@@ -49,6 +50,19 @@ logic.
 
 ## Known Limitations
 
-See the "Limitations / Deferred Features" section of the README for features
-that are intentionally not provided (sessions, CSRF infrastructure, distributed
-caching, etc.). Applications must address those concerns at their own layer.
+Sessions and CSRF protection are available as explicit, opt-in middleware; they
+are not enabled automatically. `ArraySessionStore` is process-local and is
+intended for tests and development. `FileSessionStore` provides single-host
+persistence, not shared multi-host storage. Multi-host applications must
+provide a durable shared `SessionStoreInterface` implementation.
+
+Review [the session and CSRF security guide](docs/session-security.md) before
+enabling these features. The current CSRF middleware expects the token in its
+configured header; form-body token parsing is not provided. These primitives
+do not replace application-specific threat modelling, authorization policy
+review, secure cookie/TLS configuration, or deployment hardening.
+
+FlintPHP does not currently ship a distributed cache backend. Cache and
+rate-limit guarantees depend on the selected backend and deployment topology;
+see the README's Limitations / Deferred Features and Rate Limiting & Cache
+sections.
