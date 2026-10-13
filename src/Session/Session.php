@@ -13,11 +13,13 @@ namespace FlintPHP\Framework\Session;
  */
 final class Session
 {
+    private ?string $previousId = null;
+
     /**
      * @param array<string, mixed> $data
      */
     public function __construct(
-        private readonly string $id,
+        private string $id,
         private array $data = [],
     ) {
     }
@@ -26,6 +28,22 @@ final class Session
     public function id(): string
     {
         return $this->id;
+    }
+
+    /**
+     * Rotate the session ID after authentication or another privilege change.
+     * The middleware deletes the previous server-side record when it persists.
+     */
+    public function regenerate(): void
+    {
+        $this->previousId ??= $this->id;
+        $this->id = bin2hex(random_bytes(32));
+    }
+
+    /** @internal Used by SessionMiddleware to remove the prior stored record. */
+    public function previousId(): ?string
+    {
+        return $this->previousId;
     }
 
     public function has(string $key): bool
