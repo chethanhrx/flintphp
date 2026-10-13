@@ -145,6 +145,36 @@ final class SessionSecurityTest extends TestCase
     }
 
     #[Test]
+    public function regenerating_a_session_rotates_the_id_and_removes_the_old_record(): void
+    {
+        $store = new ArraySessionStore();
+        $oldId = str_repeat('f', 64);
+        $store->write($oldId, ['user_id' => 7], time() + 60);
+        $middleware = new SessionMiddleware($store);
+        $request = new Request('POST', '/login', cookies: ['__Host-flint_session' => $oldId]);
+
+        $response = $middleware->process(
+            $request,
+            static function (Request $request): Response {
+                $session = $request->attribute(SessionMiddleware::ATTRIBUTE);
+                self::assertInstanceOf(Session::class, $session);
+                $session->regenerate();
+                $session->set('user_id', 7);
+
+                return new Response();
+            },
+        );
+
+        self::assertNull($store->read($oldId));
+        $cookie = $response->headers()->get('Set-Cookie');
+        self::assertNotNull($cookie);
+        self::assertDoesNotMatchRegularExpression('/' . $oldId . '/', $cookie);
+        preg_match('/__Host-flint_session=([a-f0-9]{64})/', $cookie, $matches);
+        self::assertArrayHasKey(1, $matches);
+        self::assertSame(['user_id' => 7], $store->read($matches[1]));
+    }
+
+    #[Test]
     public function csrf_token_is_random_stable_and_session_bound(): void
     {
         $tokens = new CsrfTokenManager();
