@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Enterprise platform phase 1 (explicit composition only).
+Production-readiness hardening (explicit composition only). This section records work in progress and is not a released version.
+
+### Fixed
+
+- Added driver-aware SQL identifier quoting for MySQL, SQLite, and PostgreSQL ORM queries and writes.
+- Added regression tests for supported identifier quoting and rejection of invalid identifiers.
+
+### Documentation
+
+- Clarified rate-limit backend guarantees and the limitations of process-local and filesystem cache stores.
+- Documented deferred session, CSRF, and distributed-cache capabilities.
 
 ### Added
 
