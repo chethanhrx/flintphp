@@ -251,7 +251,7 @@ $jwtAuth = new JwtAuthenticator(
 
 ## Rate Limiting & Cache
 
-FlintPHP provides concurrency-safe fixed-window rate limiting backed by `CacheInterface`:
+FlintPHP provides fixed-window rate limiting. Concurrency guarantees depend on the selected cache backend and its deployment topology:
 
 ```php
 use FlintPHP\Framework\Cache\FileCache;
@@ -272,10 +272,11 @@ $app->addMiddleware($rateLimiter);
 ```
 
 ### Concurrency Guarantees:
-- **`AtomicCounterInterface`:** Drivers implementing this interface (`FileCache`, `ArrayCache`) perform atomic counter increment and TTL initialization without resetting active window expirations.
-- **`FileCache`:** Uses advisory process-safe file locks (`flock` with `LOCK_EX`) on `c+` stream handles. Concurrency safe across multiple PHP-FPM / CLI worker processes on the same host.
-- **`ArrayCache`:** Thread-safe within a single PHP process lifecycle.
-- **Non-atomic drivers:** Fall back to read-then-write; concurrency safety cannot be guaranteed by non-atomic drivers.
+- **`AtomicCounterInterface`:** The interface requires an atomic increment operation with TTL initialization. Implementations must honour that contract; merely implementing the interface does not make a backend distributed.
+- **`FileCache`:** Uses advisory file locks and is suitable for cooperating processes sharing a supported local filesystem. Do not assume correctness on arbitrary network filesystems or across hosts.
+- **`ArrayCache`:** In-memory only. Separate PHP-FPM workers and separate hosts have separate counters; it is not a shared production rate-limit store.
+- **Non-atomic drivers:** Rejected by default. An explicitly enabled compatibility fallback uses read-modify-write and is race-prone under concurrent requests; do not use it where the limit is a security boundary.
+- **Multi-host deployments:** Use a shared backend with verified atomic operations. FlintPHP does not currently ship a distributed cache backend.
 - **Reverse Proxy Protection:** `clientIp()` respects `TrustedProxyConfiguration`. Spoofed `X-Forwarded-For` headers from untrusted clients are strictly ignored.
 
 ---
@@ -373,6 +374,10 @@ Or, in the skeleton: `php bin/flint list`.
 **Path rules:** `Request::path()` strips `?` and `#`, requires a leading `/`, and collapses `//`. Path segments are **not** percent-decoded.
 
 ---
+
+## Limitations / Deferred Features
+
+FlintPHP is intentionally explicit and does not currently provide built-in session management, CSRF protection infrastructure, or a distributed cache backend. Browser applications must integrate and configure appropriate session and CSRF protections. Multi-host deployments must provide shared infrastructure and validate its operational guarantees. The framework's presence of middleware or authentication primitives does not replace application-specific threat modelling, authorization policy review, or deployment hardening.
 
 ## Testing
 
