@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace FlintPHP\\Framework\\Session\\Store;
+namespace FlintPHP\Framework\Session\Store;
 
-use FlintPHP\\Framework\\Session\\SessionStoreInterface;
+use FlintPHP\Framework\Session\SessionStoreInterface;
 use JsonException;
 use RuntimeException;
 
@@ -173,7 +173,7 @@ final class FileSessionStore implements SessionStoreInterface
 
     private function assertValidId(string $id): void
     {
-        if (preg_match('/\\A[a-f0-9]{64}\\z/', $id) !== 1) {
+        if (preg_match('/\A[a-f0-9]{64}\z/', $id) !== 1) {
             throw new RuntimeException('Invalid session ID.');
         }
     }
