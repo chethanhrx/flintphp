@@ -327,7 +327,7 @@ final class RateLimitMiddlewareTest extends TestCase
     }
 
     #[Test]
-    public function cache_failure_fails_closed_by_default_without_leaking_details():
+    public function cache_failure_fails_closed_by_default_without_leaking_details(): void
     {
         $failingCache = new class implements CacheInterface {
             public function get(string $key, mixed $default = null): mixed
