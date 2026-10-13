@@ -20,7 +20,7 @@ Production-readiness hardening (explicit composition only). This section records
 ### Documentation
 
 - Clarified rate-limit backend guarantees and the limitations of process-local and filesystem cache stores.
-- Documented deferred session, CSRF, and distributed-cache capabilities.
+- Documented rate-limit backend guarantees and production session-store requirements.
 
 ### Added
 
