@@ -121,7 +121,7 @@ final class PdoConnection implements ConnectionInterface
 
     public function begin(): void
     {
-        if ($this->inTransaction) {
+        if ($this->inTransaction()) {
             throw new TransactionException('Nested transactions are not supported.');
         }
 
@@ -135,7 +135,7 @@ final class PdoConnection implements ConnectionInterface
 
     public function commit(): void
     {
-        if (!$this->inTransaction) {
+        if (!$this->inTransaction()) {
             throw new TransactionException('There is no active transaction to commit.');
         }
 
@@ -143,14 +143,14 @@ final class PdoConnection implements ConnectionInterface
             $this->pdo()->commit();
             $this->inTransaction = false;
         } catch (PDOException $e) {
-            $this->inTransaction = false;
+            $this->synchronizeTransactionState();
             throw new TransactionException('Failed to commit transaction.', 0, $e);
         }
     }
 
     public function rollBack(): void
     {
-        if (!$this->inTransaction) {
+        if (!$this->inTransaction()) {
             throw new TransactionException('There is no active transaction to rollback.');
         }
 
@@ -158,14 +158,35 @@ final class PdoConnection implements ConnectionInterface
             $this->pdo()->rollBack();
             $this->inTransaction = false;
         } catch (PDOException $e) {
-            $this->inTransaction = false;
+            $this->synchronizeTransactionState();
             throw new TransactionException('Failed to rollback transaction.', 0, $e);
         }
     }
 
     public function inTransaction(): bool
     {
+        $this->synchronizeTransactionState();
+
         return $this->inTransaction;
+    }
+
+    /**
+     * Reconcile wrapper state with PDO, which may be changed through pdo().
+     */
+    private function synchronizeTransactionState(): void
+    {
+        if ($this->pdo === null) {
+            $this->inTransaction = false;
+
+            return;
+        }
+
+        try {
+            $this->inTransaction = $this->pdo->inTransaction();
+        } catch (Throwable) {
+            // When state cannot be queried safely, do not claim the transaction ended.
+            $this->inTransaction = true;
+        }
     }
 
     public function transaction(callable $callback): mixed
