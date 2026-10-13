@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace FlintPHP\\Framework\\Tests\\WebSocket\\Handshake;
+namespace FlintPHP\Framework\Tests\WebSocket\Handshake;
 
-use FlintPHP\\Framework\\Http\\Request;
-use FlintPHP\\Framework\\WebSocket\\Exception\\HandshakeException;
-use FlintPHP\\Framework\\WebSocket\\Handshake\\OriginPolicy;
+use FlintPHP\Framework\Http\Request;
+use FlintPHP\Framework\WebSocket\Exception\HandshakeException;
+use FlintPHP\Framework\WebSocket\Handshake\OriginPolicy;
 use InvalidArgumentException;
-use PHPUnit\\Framework\\Attributes\\CoversClass;
-use PHPUnit\\Framework\\Attributes\\Test;
-use PHPUnit\\Framework\\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 
 #[CoversClass(OriginPolicy::class)]
 final class OriginPolicyTest extends TestCase
