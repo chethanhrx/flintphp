@@ -29,7 +29,7 @@ final class CsrfMiddleware implements MiddlewareInterface
 
     public function process(Request $request, callable $next): Response
     {
-        if (in_array($request->method(), ['GET', 'HEAD', 'OPTIONS'], true)) {
+        if (in_array(strtoupper($request->method()), ['GET', 'HEAD', 'OPTIONS'], true)) {
             return $next($request);
         }
 
