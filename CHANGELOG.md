@@ -15,6 +15,7 @@ Production-readiness hardening (explicit composition only). This section records
 - Added regression tests for supported identifier quoting and rejection of invalid identifiers.
 - Added `Kernel::handleGlobals()` so request-construction failures are processed by the configured exception handler; documented it as the preferred front-controller entry point.
 - Reconciled the transaction wrapper's reported state with PDO when callers change transaction state through the exposed PDO connection.
+- Added strict WebSocket Origin allowlisting with normalized origins, host/port validation, and malformed IPv6 rejection.
 
 ### Documentation
 

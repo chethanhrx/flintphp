@@ -12,11 +12,10 @@ use FlintPHP\Framework\WebSocket\Exception\HandshakeException;
  */
 final class HandshakeValidator
 {
-    /**
-     * Validate the handshake request.
-     *
-     * @throws HandshakeException If validation fails.
-     */
+    public function __construct(private readonly ?OriginPolicy $originPolicy = null)
+    {
+    }
+
     public function validate(Request $request): void
     {
         if ($request->method() !== 'GET') {
@@ -27,6 +26,7 @@ final class HandshakeValidator
         $this->validateConnectionHeader($request);
         $this->validateVersionHeader($request);
         $this->validateKeyHeader($request);
+        $this->originPolicy?->validate($request);
     }
 
     private function validateUpgradeHeader(Request $request): void
