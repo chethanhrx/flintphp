@@ -12,8 +12,17 @@ use FlintPHP\Framework\WebSocket\Exception\HandshakeException;
  */
 final class HandshakeValidator
 {
+    public function __construct(
+        private readonly ?OriginPolicy $originPolicy = null,
+    ) {
+    }
+
     /**
      * Validate the handshake request.
+     *
+     * When an OriginPolicy is supplied, browser Origin headers are checked
+     * against its explicit allowlist. Applications should configure this for
+     * browser-facing WebSocket endpoints.
      *
      * @throws HandshakeException If validation fails.
      */
@@ -27,6 +36,8 @@ final class HandshakeValidator
         $this->validateConnectionHeader($request);
         $this->validateVersionHeader($request);
         $this->validateKeyHeader($request);
+
+        $this->originPolicy?->validate($request);
     }
 
     private function validateUpgradeHeader(Request $request): void
