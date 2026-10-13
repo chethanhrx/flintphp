@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Enterprise platform phase 1 (explicit composition only).
+Production-readiness hardening (explicit composition only). This section records work in progress and is not a released version.
+
+### Fixed
+
+- Added driver-aware SQL identifier quoting for MySQL, SQLite, and PostgreSQL ORM queries and writes.
+- Added regression tests for supported identifier quoting and rejection of invalid identifiers.
+- Added `Kernel::handleGlobals()` so request-construction failures are processed by the configured exception handler; documented it as the preferred front-controller entry point.
+- Reconciled the transaction wrapper's reported state with PDO when callers change transaction state through the exposed PDO connection.
+
+### Documentation
+
+- Clarified rate-limit backend guarantees and the limitations of process-local and filesystem cache stores.
+- Documented deferred session, CSRF, and distributed-cache capabilities.
 
 ### Added
 

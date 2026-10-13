@@ -38,6 +38,35 @@ final class KernelTest extends TestCase
     }
 
     #[Test]
+    public function handle_globals_builds_request_and_runs_kernel_pipeline(): void
+    {
+        $originalServer = $_SERVER;
+        $originalGet = $_GET;
+        $originalCookie = $_COOKIE;
+
+        try {
+            $_SERVER = [
+                'REQUEST_METHOD' => 'GET',
+                'REQUEST_URI' => '/health',
+            ];
+            $_GET = [];
+            $_COOKIE = [];
+
+            $this->router->get('/health', fn () => new Response('OK'));
+            $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker, $this->exceptionHandler);
+
+            $response = $kernel->handleGlobals();
+
+            $this->assertSame(200, $response->status());
+            $this->assertSame('OK', $response->body());
+        } finally {
+            $_SERVER = $originalServer;
+            $_GET = $originalGet;
+            $_COOKIE = $originalCookie;
+        }
+    }
+
+    #[Test]
     public function it_returns_404_when_route_is_not_found(): void
     {
         $kernel = new Kernel($this->router, new MiddlewareStack(), $this->invoker, $this->exceptionHandler);

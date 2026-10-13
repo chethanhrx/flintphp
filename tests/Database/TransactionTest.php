@@ -102,6 +102,32 @@ final class TransactionTest extends TestCase
     }
 
     #[Test]
+    public function in_transaction_reflects_external_pdo_transaction_changes(): void
+    {
+        $pdo = $this->connection->pdo();
+
+        $pdo->beginTransaction();
+        $this->assertTrue($this->connection->inTransaction());
+
+        $pdo->rollBack();
+        $this->assertFalse($this->connection->inTransaction());
+    }
+
+    #[Test]
+    public function wrapper_detects_transaction_closed_outside_the_wrapper(): void
+    {
+        $this->connection->begin();
+        $this->assertTrue($this->connection->inTransaction());
+
+        $this->connection->pdo()->rollBack();
+
+        $this->assertFalse($this->connection->inTransaction());
+        $this->expectException(TransactionException::class);
+        $this->expectExceptionMessage('There is no active transaction to commit.');
+        $this->connection->commit();
+    }
+
+    #[Test]
     public function transaction_callback_rethrows_original_exception_even_if_rollback_fails(): void
     {
         $this->expectException(RuntimeException::class);

@@ -72,7 +72,7 @@ final class OrmManager
         $this->validateIdentifier($table);
         $this->validateIdentifier($primaryKey);
 
-        $sql = sprintf('DELETE FROM %s WHERE %s = ?', $table, $primaryKey);
+        $sql = sprintf('DELETE FROM %s WHERE %s = ?', $this->quoteIdentifier($table), $this->quoteIdentifier($primaryKey));
         $affected = $this->connection->execute($sql, [$attributes[$primaryKey]]);
 
         return $affected > 0;
@@ -153,7 +153,7 @@ final class OrmManager
 
         foreach ($attributes as $column => $value) {
             $this->validateIdentifier($column);
-            $columns[] = $column;
+            $columns[] = $this->quoteIdentifier($column);
             $placeholders[] = '?';
             $values[] = $value;
         }
@@ -164,7 +164,7 @@ final class OrmManager
 
         $sql = sprintf(
             'INSERT INTO %s (%s) VALUES (%s)',
-            $table,
+            $this->quoteIdentifier($table),
             implode(', ', $columns),
             implode(', ', $placeholders)
         );
@@ -222,7 +222,7 @@ final class OrmManager
 
         foreach ($attributes as $column => $value) {
             $this->validateIdentifier($column);
-            $setClauses[] = sprintf('%s = ?', $column);
+            $setClauses[] = sprintf('%s = ?', $this->quoteIdentifier($column));
             $values[] = $value;
         }
 
@@ -230,15 +230,23 @@ final class OrmManager
 
         $sql = sprintf(
             'UPDATE %s SET %s WHERE %s = ?',
-            $table,
+            $this->quoteIdentifier($table),
             implode(', ', $setClauses),
-            $primaryKey
+            $this->quoteIdentifier($primaryKey)
         );
 
         $this->connection->execute($sql, $values);
 
         // Success means the statement executed without error (0 rows affected is still OK).
         return true;
+    }
+
+    private function quoteIdentifier(string $identifier): string
+    {
+        return SqlIdentifierQuoter::quote(
+            $identifier,
+            (string) $this->connection->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME),
+        );
     }
 
     private function validateIdentifier(string $identifier): void

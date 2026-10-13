@@ -10,6 +10,7 @@ use FlintPHP\Framework\Middleware\MiddlewareStack;
 use FlintPHP\Framework\Routing\HandlerInvoker;
 use FlintPHP\Framework\Routing\Route;
 use FlintPHP\Framework\Routing\Router;
+use FlintPHP\Framework\Security\Http\TrustedProxyConfiguration;
 use Psr\Container\ContainerInterface;
 use Throwable;
 
@@ -31,6 +32,28 @@ final class Kernel
         private readonly ?ContainerInterface $container = null,
     ) {
         $this->exceptionHandler = $exceptionHandler ?? new \FlintPHP\Framework\Http\Exception\ExceptionHandler();
+    }
+
+    /**
+     * Build a request from PHP globals while keeping ingress exceptions inside
+     * the configured HTTP exception boundary.
+     */
+    public function handleGlobals(?TrustedProxyConfiguration $trustedProxies = null): Response
+    {
+        try {
+            return $this->handle(Request::fromGlobals($trustedProxies));
+        } catch (Throwable $exception) {
+            $server = $_SERVER;
+            $method = $server['REQUEST_METHOD'] ?? 'GET';
+            $uri = $server['REQUEST_URI'] ?? '/';
+
+            $fallbackRequest = new Request(
+                method: is_string($method) ? strtoupper($method) : 'GET',
+                uri: is_string($uri) ? $uri : '/',
+            );
+
+            return $this->exceptionHandler->handle($exception, $fallbackRequest);
+        }
     }
 
     public function handle(Request $request): Response

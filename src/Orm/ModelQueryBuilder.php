@@ -257,7 +257,10 @@ final class ModelQueryBuilder
 
     private function quote(string $identifier): string
     {
-        return '"' . $identifier . '"';
+        return SqlIdentifierQuoter::quote(
+            $identifier,
+            (string) $this->connection->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME),
+        );
     }
 
     private function validateIdentifier(string $identifier): void
