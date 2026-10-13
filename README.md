@@ -383,7 +383,7 @@ For browser-facing WebSocket endpoints, configure an explicit Origin allowlist. 
 
 ```php
 use FlintPHP\Framework\WebSocket\Handshake\HandshakeValidator;
-use FlintPHP\Framework\WebSocket\Handshake\\OriginPolicy;
+use FlintPHP\Framework\WebSocket\Handshake\OriginPolicy;
 
 $validator = new HandshakeValidator(
     new OriginPolicy([
