@@ -97,6 +97,21 @@ final class MigratorTest extends TestCase
     }
 
     #[Test]
+    public function rejects_migration_ids_longer_than_portable_column_limit(): void
+    {
+        $invalid = new class implements MigrationInterface {
+            public function id(): string { return str_repeat('a', 192); }
+            public function up(ConnectionInterface $c): void {}
+            public function down(ConnectionInterface $c): void {}
+        };
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid migration id');
+
+        $this->migrator->migrate([$invalid]);
+    }
+
+    #[Test]
     public function rollback_reverts_in_actual_application_order_not_lexical(): void
     {
         // Suppose migration B was applied in an earlier run, then migration A (with older lexical ID)
