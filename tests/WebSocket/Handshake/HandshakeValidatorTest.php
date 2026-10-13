@@ -9,6 +9,7 @@ use FlintPHP\Framework\Http\Method;
 use FlintPHP\Framework\Http\Request;
 use FlintPHP\Framework\WebSocket\Exception\HandshakeException;
 use FlintPHP\Framework\WebSocket\Handshake\HandshakeValidator;
+use FlintPHP\Framework\WebSocket\Handshake\OriginPolicy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
