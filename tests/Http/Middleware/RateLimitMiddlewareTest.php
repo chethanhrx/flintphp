@@ -345,7 +345,7 @@ final class RateLimitMiddlewareTest extends TestCase
             public function has(string $key): bool { return false; }
         };
 
-        $mw = new RateLimitMiddleware($failingCache, maxAttempts: 10, windowSeconds: 60, failClosed: true);
+        $mw = new RateLimitMiddleware($failingCache, maxAttempts: 10, windowSeconds: 60, failClosed: true, allowNonAtomicFallback: true);
         $req = new Request('GET', '/', clientIp: '1.2.3.4');
 
         $response = $mw->process($req, fn () => new Response('should not reach here'));
@@ -371,7 +371,7 @@ final class RateLimitMiddlewareTest extends TestCase
             public function has(string $key): bool { return false; }
         };
 
-        $mw = new RateLimitMiddleware($failingCache, maxAttempts: 10, windowSeconds: 60, failClosed: false);
+        $mw = new RateLimitMiddleware($failingCache, maxAttempts: 10, windowSeconds: 60, failClosed: false, allowNonAtomicFallback: true);
         $req = new Request('GET', '/', clientIp: '1.2.3.4');
 
         $reached = false;
