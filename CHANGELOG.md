@@ -23,6 +23,7 @@ Production-readiness hardening (explicit composition only). This section records
 
 ### Added
 
+- Added configurable WebSocket Origin allowlisting for browser-facing handshake validation, with explicit handling for clients that omit Origin.
 - **Database\\Migration\\Migrator** + **MigrationInterface** — versioned up/down,
   tracked in `flint_migrations`.
 - **ModelQueryBuilder** — operators (`>`, `IN`, `LIKE`, …), `orderBy`, `limit`,

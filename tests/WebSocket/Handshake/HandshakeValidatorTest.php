@@ -9,6 +9,7 @@ use FlintPHP\Framework\Http\Method;
 use FlintPHP\Framework\Http\Request;
 use FlintPHP\Framework\WebSocket\Exception\HandshakeException;
 use FlintPHP\Framework\WebSocket\Handshake\HandshakeValidator;
+use FlintPHP\Framework\WebSocket\Handshake\OriginPolicy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -254,5 +255,24 @@ final class HandshakeValidatorTest extends TestCase
                 $this->assertTrue(true);
             }
         }
+    }
+
+    #[Test]
+    public function it_enforces_configured_origin_policy(): void
+    {
+        $validator = new HandshakeValidator(new OriginPolicy(['https://app.example.com']));
+        $request = $this->createValidRequest()->withHeader('Origin', 'https://app.example.com');
+        $validator->validate($request);
+        $this->assertTrue(true);
+    }
+
+    #[Test]
+    public function it_rejects_disallowed_origin_when_policy_is_configured(): void
+    {
+        $validator = new HandshakeValidator(new OriginPolicy(['https://app.example.com']));
+        $request = $this->createValidRequest()->withHeader('Origin', 'https://attacker.example');
+
+        $this->expectException(HandshakeException::class);
+        $validator->validate($request);
     }
 }
