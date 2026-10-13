@@ -382,8 +382,8 @@ Or, in the skeleton: `php bin/flint list`.
 For browser-facing WebSocket endpoints, configure an explicit Origin allowlist. Origin checks help prevent hostile websites from opening authenticated WebSocket connections from a visitor's browser; they do not replace authentication or authorization.
 
 ```php
-use FlintPHP\Framework\WebSocket\\Handshake\\HandshakeValidator;
-use FlintPHP\Framework\WebSocket\\Handshake\\OriginPolicy;
+use FlintPHP\Framework\WebSocket\Handshake\HandshakeValidator;
+use FlintPHP\Framework\WebSocket\Handshake\\OriginPolicy;
 
 $validator = new HandshakeValidator(
     new OriginPolicy([
