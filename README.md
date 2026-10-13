@@ -377,6 +377,32 @@ Or, in the skeleton: `php bin/flint list`.
 
 ---
 
+## WebSocket Origin Validation
+
+For browser-facing WebSocket endpoints, configure an explicit Origin allowlist. Origin checks help prevent hostile websites from opening authenticated WebSocket connections from a visitor's browser; they do not replace authentication or authorization.
+
+```php
+use FlintPHP\Framework\WebSocket\Handshake\HandshakeValidator;
+use FlintPHP\Framework\WebSocket\Handshake\OriginPolicy;
+
+$validator = new HandshakeValidator(
+    new OriginPolicy([
+        'https://app.example.com',
+        'https://admin.example.com',
+    ]),
+);
+```
+
+When using `HandshakeResponseBuilder`, pass the configured validator to its constructor:
+
+```php
+$responseBuilder = new HandshakeResponseBuilder($validator);
+```
+
+The allowlist matches exact HTTP(S) origins (scheme, host, and effective port); paths and credentials are not accepted. By default, a missing Origin is rejected when a policy is configured. Set `allowMissingOrigin: true` only when the endpoint intentionally supports clients that omit Origin, and ensure those clients are authenticated independently. If no policy is supplied, the validator preserves the previous behavior and does not enforce Origin; configure one for browser-accessible endpoints.
+
+---
+
 ## Limitations / Deferred Features
 
 FlintPHP is intentionally explicit and does not currently provide built-in session management, CSRF protection infrastructure, or a distributed cache backend. Browser applications must integrate and configure appropriate session and CSRF protections. Multi-host deployments must provide shared infrastructure and validate its operational guarantees. The framework's presence of middleware or authentication primitives does not replace application-specific threat modelling, authorization policy review, or deployment hardening.
