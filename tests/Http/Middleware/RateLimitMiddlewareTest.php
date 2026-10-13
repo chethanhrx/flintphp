@@ -232,7 +232,7 @@ final class RateLimitMiddlewareTest extends TestCase
     }
 
     #[Test]
-    public function non_atomic_cache_driver_fallback_works(): void
+    public function non_atomic_cache_driver_is_rejected_by_default(): void
     {
         // Cache driver that implements only CacheInterface, without AtomicCounterInterface
         $mockCache = new class implements CacheInterface {
@@ -270,10 +270,60 @@ final class RateLimitMiddlewareTest extends TestCase
         $mw = new RateLimitMiddleware($mockCache, maxAttempts: 2, windowSeconds: 60);
         $req = new Request('GET', '/', clientIp: '1.2.3.4');
 
+        $reached = false;
+        $response = $mw->process($req, function () use (&$reached) {
+            $reached = true;
+            return new Response('ok');
+        });
+
+        $this->assertSame(503, $response->status());
+        $this->assertFalse($reached);
+        $this->assertSame('rate_limit_unavailable', json_decode($response->body(), true)['error']['code'] ?? null);
+    }
+
+    #[Test]
+    public function non_atomic_cache_fallback_requires_explicit_opt_in(): void
+    {
+        $mockCache = new class implements CacheInterface {
+            public array $data = [];
+
+            public function get(string $key, mixed $default = null): mixed { return $this->data[$key] ?? $default; }
+            public function set(string $key, mixed $value, ?int $ttl = null): bool { $this->data[$key] = $value; return true; }
+            public function delete(string $key): bool { unset($this->data[$key]); return true; }
+            public function clear(): bool { $this->data = []; return true; }
+            public function has(string $key): bool { return isset($this->data[$key]); }
+        };
+
+        $mw = new RateLimitMiddleware($mockCache, maxAttempts: 2, windowSeconds: 60, allowNonAtomicFallback: true);
+        $req = new Request('GET', '/', clientIp: '1.2.3.4');
+
         $this->assertSame(200, $mw->process($req, fn () => new Response('ok'))->status());
         $this->assertSame(200, $mw->process($req, fn () => new Response('ok'))->status());
-        $blocked = $mw->process($req, fn () => new Response('ok'));
-        $this->assertSame(429, $blocked->status());
+        $this->assertSame(429, $mw->process($req, fn () => new Response('ok'))->status());
+    }
+
+    #[Test]
+    public function non_atomic_cache_write_failure_fails_closed(): void
+    {
+        $cache = new class implements CacheInterface {
+            public function get(string $key, mixed $default = null): mixed { return 0; }
+            public function set(string $key, mixed $value, ?int $ttl = null): bool { return false; }
+            public function delete(string $key): bool { return true; }
+            public function clear(): bool { return true; }
+            public function has(string $key): bool { return false; }
+        };
+
+        $mw = new RateLimitMiddleware($cache, maxAttempts: 2, windowSeconds: 60, allowNonAtomicFallback: true);
+        $req = new Request('GET', '/', clientIp: '1.2.3.4');
+        $reached = false;
+
+        $response = $mw->process($req, function () use (&$reached) {
+            $reached = true;
+            return new Response('ok');
+        });
+
+        $this->assertSame(429, $response->status());
+        $this->assertFalse($reached);
     }
 
     #[Test]
@@ -295,7 +345,7 @@ final class RateLimitMiddlewareTest extends TestCase
             public function has(string $key): bool { return false; }
         };
 
-        $mw = new RateLimitMiddleware($failingCache, maxAttempts: 10, windowSeconds: 60, failClosed: true);
+        $mw = new RateLimitMiddleware($failingCache, maxAttempts: 10, windowSeconds: 60, failClosed: true, allowNonAtomicFallback: true);
         $req = new Request('GET', '/', clientIp: '1.2.3.4');
 
         $response = $mw->process($req, fn () => new Response('should not reach here'));
@@ -321,7 +371,7 @@ final class RateLimitMiddlewareTest extends TestCase
             public function has(string $key): bool { return false; }
         };
 
-        $mw = new RateLimitMiddleware($failingCache, maxAttempts: 10, windowSeconds: 60, failClosed: false);
+        $mw = new RateLimitMiddleware($failingCache, maxAttempts: 10, windowSeconds: 60, failClosed: false, allowNonAtomicFallback: true);
         $req = new Request('GET', '/', clientIp: '1.2.3.4');
 
         $reached = false;

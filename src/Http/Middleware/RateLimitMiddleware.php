@@ -16,9 +16,9 @@ use Throwable;
  * Concurrency-safe fixed-window rate limiter backed by CacheInterface.
  *
  * For concurrency safety across processes or distributed nodes, the cache driver
- * should implement AtomicCounterInterface (e.g. ArrayCache, FileCache).
- * If a non-atomic CacheInterface driver is supplied, a read-modify-write fallback
- * is used, but concurrency safety cannot be guaranteed by the driver.
+ * must implement AtomicCounterInterface (e.g. ArrayCache, FileCache).
+ * Non-atomic cache drivers are rejected by default. The read-modify-write fallback
+ * is available only as an explicit opt-in and is not safe under concurrent requests.
  *
  * Cache keys obey framework rules: [a-zA-Z0-9_.]{1,64}
  */
@@ -33,6 +33,7 @@ final class RateLimitMiddleware implements MiddlewareInterface
         private readonly int $windowSeconds = 60,
         private readonly mixed $keyResolver = null,
         private readonly bool $failClosed = true,
+        private readonly bool $allowNonAtomicFallback = false,
     ) {
         if ($this->maxAttempts < 1) {
             throw new InvalidArgumentException('maxAttempts must be >= 1');
@@ -50,14 +51,20 @@ final class RateLimitMiddleware implements MiddlewareInterface
             if ($this->cache instanceof AtomicCounterInterface) {
                 $current = $this->cache->increment($cacheKey, 1, $this->windowSeconds);
             } else {
-                // Non-atomic fallback for basic CacheInterface drivers.
+                if (!$this->allowNonAtomicFallback) {
+                    return Response::error('Rate limiting unavailable', 503, 'rate_limit_unavailable');
+                }
+
+                // Explicitly opted-in compatibility fallback; not concurrency-safe.
                 $currentVal = $this->cache->get($cacheKey, 0);
                 $current = is_numeric($currentVal) ? (int) $currentVal : 0;
                 if ($current >= $this->maxAttempts) {
                     return $this->rateLimitResponse();
                 }
                 $current++;
-                $this->cache->set($cacheKey, $current, $this->windowSeconds);
+                if (!$this->cache->set($cacheKey, $current, $this->windowSeconds)) {
+                    throw new \RuntimeException('Rate-limit counter could not be persisted.');
+                }
             }
         } catch (Throwable) {
             if ($this->failClosed) {
