@@ -42,6 +42,11 @@ final class SessionMiddleware implements MiddlewareInterface
         $session = new Session($id, $data);
         $response = $next($request->withAttribute(self::ATTRIBUTE, $session));
 
+        $previousId = $session->previousId();
+        if ($previousId !== null) {
+            $this->store->delete($previousId);
+        }
+
         $this->store->write($session->id(), $session->all(), time() + $this->cookie->lifetimeSeconds);
 
         $headers = $response->headers()->all();
