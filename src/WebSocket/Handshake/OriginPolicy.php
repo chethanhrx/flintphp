@@ -84,7 +84,7 @@ final class OriginPolicy
 
         try {
             $parts = parse_url($origin);
-        } catch (\\ValueError) {
+        } catch (\ValueError) {
             return null;
         }
 
