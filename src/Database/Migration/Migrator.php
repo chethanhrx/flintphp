@@ -163,7 +163,7 @@ final class Migrator
     {
         $this->connection->execute(
             'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (
-                id TEXT PRIMARY KEY NOT NULL,
+                id VARCHAR(191) PRIMARY KEY NOT NULL,
                 applied_at TEXT NOT NULL,
                 sequence INTEGER NOT NULL DEFAULT 0
             )'
