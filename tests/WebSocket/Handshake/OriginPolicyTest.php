@@ -81,6 +81,7 @@ final class OriginPolicyTest extends TestCase
             'https://example.com:',
             'https://example.com:0',
             'https://example.com:65536',
+            'https://example.com:999999999999',
             'https://example.com:notaport',
         ] as $origin) {
             try {
