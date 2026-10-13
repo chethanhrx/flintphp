@@ -9,6 +9,7 @@ use FlintPHP\Framework\Http\Method;
 use FlintPHP\Framework\Http\Request;
 use FlintPHP\Framework\WebSocket\Exception\HandshakeException;
 use FlintPHP\Framework\WebSocket\Handshake\HandshakeValidator;
+use FlintPHP\Framework\WebSocket\Handshake\OriginPolicy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -255,4 +256,32 @@ final class HandshakeValidatorTest extends TestCase
             }
         }
     }
+
+    #[Test]
+    public function it_enforces_the_configured_origin_policy_during_handshake_validation(): void
+    {
+        $validator = new HandshakeValidator(new OriginPolicy(['https://app.example.com']));
+        $request = $this->createValidRequest()->withHeader('Origin', 'https://attacker.example');
+
+        $this->expectException(HandshakeException::class);
+        $validator->validate($request);
+    }
+
+    #[Test]
+    public function it_accepts_a_handshake_from_an_allowlisted_origin(): void
+    {
+        $validator = new HandshakeValidator(new OriginPolicy(['https://app.example.com']));
+        $request = $this->createValidRequest()->withHeader('Origin', 'https://APP.EXAMPLE.COM:443');
+
+        $validator->validate($request);
+        $this->assertTrue(true);
+    }
+
+    #[Test]
+    public function it_preserves_legacy_origin_behavior_when_no_policy_is_configured(): void
+    {
+        $this->validator->validate($this->createValidRequest());
+        $this->assertTrue(true);
+    }
+
 }
