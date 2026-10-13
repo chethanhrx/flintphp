@@ -45,3 +45,70 @@ jobs:
 
       - name: Run test suite
         run: vendor/bin/phpunit
+
+  database-integration:
+    name: Database integration (MySQL + PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: testroot
+          MYSQL_DATABASE: flintphp_test
+          MYSQL_USER: flintphp
+          MYSQL_PASSWORD: flintphp_test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ptestroot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: flintphp_test
+          POSTGRES_USER: flintphp
+          POSTGRES_PASSWORD: flintphp_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U flintphp -d flintphp_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP with MySQL and PostgreSQL drivers
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, pdo_pgsql
+          coverage: none
+          tools: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run integration tests against MySQL
+        env:
+          FLINTPHP_TEST_DB_DRIVER: mysql
+          FLINTPHP_TEST_DB_HOST: 127.0.0.1
+          FLINTPHP_TEST_DB_PORT: 3307
+          FLINTPHP_TEST_DB_NAME: flintphp_test
+          FLINTPHP_TEST_DB_USER: flintphp
+          FLINTPHP_TEST_DB_PASSWORD: flintphp_test
+        run: vendor/bin/phpunit tests/Integration
+
+      - name: Run integration tests against PostgreSQL
+        env:
+          FLINTPHP_TEST_DB_DRIVER: pgsql
+          FLINTPHP_TEST_DB_HOST: 127.0.0.1
+          FLINTPHP_TEST_DB_PORT: 5433
+          FLINTPHP_TEST_DB_NAME: flintphp_test
+          FLINTPHP_TEST_DB_USER: flintphp
+          FLINTPHP_TEST_DB_PASSWORD: flintphp_test
+        run: vendor/bin/phpunit tests/Integration
