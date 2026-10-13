@@ -24,6 +24,16 @@ Production-readiness hardening (explicit composition only). This section records
 
 ### Added
 
+- Added explicit server-side session primitives: Session, SessionStoreInterface,
+  an expiring process-local ArraySessionStore for development/tests, secure
+  cookie configuration, and opt-in SessionMiddleware.
+- Added session ID rotation for privilege changes and removal of the previous
+  stored session record.
+- Added session-bound CSRF token generation and constant-time verification,
+  plus opt-in CsrfMiddleware for unsafe HTTP methods.
+- Documented session store requirements, cookie settings, middleware ordering,
+  and CSRF usage in docs/session-security.md.
+
 - **Database\\Migration\\Migrator** + **MigrationInterface** — versioned up/down,
   tracked in `flint_migrations`.
 - **ModelQueryBuilder** — operators (`>`, `IN`, `LIKE`, …), `orderBy`, `limit`,
