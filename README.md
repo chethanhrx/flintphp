@@ -399,7 +399,7 @@ Pass the configured validator to the WebSocket handshake response builder. The p
 
 ## Limitations / Deferred Features
 
-FlintPHP is intentionally explicit and does not currently provide built-in session management, CSRF protection infrastructure, or a distributed cache backend. Browser applications must integrate and configure appropriate session and CSRF protections. Multi-host deployments must provide shared infrastructure and validate its operational guarantees. The framework's presence of middleware or authentication primitives does not replace application-specific threat modelling, authorization policy review, or deployment hardening.
+FlintPHP provides opt-in server-side session primitives and CSRF middleware; neither is enabled automatically. The bundled ArraySessionStore is process-local for tests and development only, so production and multi-host deployments must supply a durable shared SessionStoreInterface implementation. Review [session and CSRF configuration](docs/session-security.md) before enabling these features. Middleware and authentication primitives do not replace application-specific threat modelling, authorization policy review, or deployment hardening.
 
 ## Testing
 
