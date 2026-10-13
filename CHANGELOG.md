@@ -20,28 +20,20 @@ Production-readiness hardening (explicit composition only). This section records
 ### Documentation
 
 - Clarified rate-limit backend guarantees and the limitations of process-local and filesystem cache stores.
-- Documented rate-limit backend guarantees and production session-store requirements.
+- Documented production session-store requirements, cookie settings, middleware ordering, and CSRF usage in `docs/session-security.md`.
 
 ### Added
 
-- Added explicit server-side session primitives: Session, SessionStoreInterface,
-- Added FileSessionStore for single-host persistence with JSON records, strict
-  session ID validation, restrictive permissions, locking, and atomic writes.
-  an expiring process-local ArraySessionStore for development/tests, secure
-  cookie configuration, and opt-in SessionMiddleware.
-- Added session ID rotation for privilege changes and removal of the previous
-  stored session record.
-- Added session-bound CSRF token generation and constant-time verification,
-  plus opt-in CsrfMiddleware for unsafe HTTP methods.
-- Documented session store requirements, cookie settings, middleware ordering,
-  and CSRF usage in docs/session-security.md.
-
-- **Database\\Migration\\Migrator** + **MigrationInterface** — versioned up/down,
-  tracked in `flint_migrations`.
-- **ModelQueryBuilder** — operators (`>`, `IN`, `LIKE`, …), `orderBy`, `limit`,
-  `offset`, quoted identifiers.
-- **CorsMiddleware**, **RateLimitMiddleware**, **RequestIdMiddleware**.
-- **Health\\HealthChecker** — build `/health` payloads (optional DB check).
+- Added explicit server-side session primitives: `Session` and `SessionStoreInterface`.
+- Added `ArraySessionStore`, an expiring process-local store intended for development and tests.
+- Added `FileSessionStore` for single-host persistence using JSON records, strict session ID validation, restrictive permissions, locking, and atomic writes.
+- Added secure cookie configuration and opt-in `SessionMiddleware`.
+- Added session ID rotation for privilege changes and removal of the previous stored session record.
+- Added session-bound CSRF token generation and constant-time verification, plus opt-in `CsrfMiddleware` for unsafe HTTP methods.
+- Added **Database\\Migration\\Migrator** and **MigrationInterface** for versioned up/down migrations tracked in `flint_migrations`.
+- Added **ModelQueryBuilder** operators (`>`, `IN`, `LIKE`, …), `orderBy`, `limit`, `offset`, and quoted identifiers.
+- Added **CorsMiddleware**, **RateLimitMiddleware**, and **RequestIdMiddleware**.
+- Added **Health\\HealthChecker** to build a `/health` payload with an optional database check.
 
 ## [1.1.0] - 2026-10-12
 
