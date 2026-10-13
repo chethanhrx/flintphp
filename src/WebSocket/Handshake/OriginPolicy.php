@@ -82,7 +82,12 @@ final class OriginPolicy
             return null;
         }
 
-        $parts = parse_url($origin);
+        try {
+            $parts = parse_url($origin);
+        } catch (\\ValueError) {
+            return null;
+        }
+
         if (!is_array($parts)) {
             return null;
         }
