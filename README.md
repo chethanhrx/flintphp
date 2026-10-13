@@ -67,7 +67,7 @@ $app->router()->get('/users/{id}', function (Request $request, int $id): Respons
     return Response::json(['id' => $id]);
 });
 
-$response = $app->kernel()->handle(Request::fromGlobals());
+$response = $app->kernel()->handleGlobals();
 $response->send();
 ```
 
@@ -77,6 +77,8 @@ Notes:
 - Use **`[Controller::class, 'method']`** or a Closure. **`Controller@method` is not supported.**
 - Typed route params that fail to cast (e.g. `/users/abc` with `int $id`) return **404**.
 - Unexpected exceptions are logged (JSON lines via `error_log`) and return a generic 500.
+
+- Prefer `Kernel::handleGlobals()` in a front controller. It keeps request-construction failures (including oversized bodies) inside the configured exception handler. `Request::fromGlobals()` can still be used directly when the application intentionally manages ingress exceptions itself.
 
 ---
 
