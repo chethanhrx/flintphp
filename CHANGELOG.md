@@ -25,6 +25,8 @@ Production-readiness hardening (explicit composition only). This section records
 ### Added
 
 - Added explicit server-side session primitives: Session, SessionStoreInterface,
+- Added FileSessionStore for single-host persistence with JSON records, strict
+  session ID validation, restrictive permissions, locking, and atomic writes.
   an expiring process-local ArraySessionStore for development/tests, secure
   cookie configuration, and opt-in SessionMiddleware.
 - Added session ID rotation for privilege changes and removal of the previous

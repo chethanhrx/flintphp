@@ -5,19 +5,19 @@ not enabled automatically, so existing applications keep their current behavior.
 
 ## 1. Configure a session store
 
-Implement SessionStoreInterface using a durable server-side backend for
-production (for example, a database or shared cache). The bundled
-ArraySessionStore is process-local and is only suitable for tests or local
-development; it does not survive process restarts and is not shared between
-workers.
+FlintPHP includes two stores:
 
-Example configuration:
+- `ArraySessionStore` is process-local and intended only for tests or local development.
+- `FileSessionStore` persists sessions across requests and process restarts on a single host. Store its directory outside the public document root. It applies restrictive directory/file permissions and uses locks plus atomic file replacement.
+- For multi-host deployments, implement `SessionStoreInterface` with a shared database or cache backend.
+
+Example file-store configuration:
 
     use FlintPHP\Framework\Session\SessionCookieConfiguration;
     use FlintPHP\Framework\Session\SessionMiddleware;
-    use FlintPHP\Framework\Session\Store\ArraySessionStore;
+    use FlintPHP\Framework\Session\Store\FileSessionStore;
 
-    $sessionStore = new ArraySessionStore(); // development/testing only
+    $sessionStore = new FileSessionStore(__DIR__ . '/../var/sessions');
     $sessionMiddleware = new SessionMiddleware(
         $sessionStore,
         new SessionCookieConfiguration(
@@ -62,6 +62,11 @@ malformed or unknown to the store are not adopted. After login or another
 privilege change, call $session->regenerate() to rotate the ID and have the
 middleware delete the previous server-side record.
 
+FileSessionStore serializes session records as JSON, so session values must be
+JSON-serializable. It treats malformed JSON records as invalid sessions.
+Keep the storage directory private and outside the web root. It is a single-host
+file backend, not a distributed session store.
+
 ## 3. Add CSRF protection
 
 Register CsrfMiddleware after SessionMiddleware. Obtain the token from the
@@ -86,7 +91,7 @@ header; form-body parsing is intentionally left to a future integration.
 
 - Sessions are server-side; the cookie contains only a random opaque ID.
 - Keep session data serializable and avoid putting unnecessary sensitive data in it.
-- Use a shared, durable store in multi-worker or multi-instance deployments.
+- Use a shared, durable store in multi-host deployments.
 - Configure secure cookies only behind HTTPS and ensure proxy/TLS configuration
   reflects the actual public connection.
 - CSRF middleware protects cookie-authenticated browser flows; it is not a
