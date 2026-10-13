@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace FlintPHP\\Framework\\WebSocket\\Handshake;
+namespace FlintPHP\Framework\WebSocket\Handshake;
 
-use FlintPHP\\Framework\\Http\\Request;
-use FlintPHP\\Framework\\WebSocket\\Exception\\HandshakeException;
+use FlintPHP\Framework\Http\Request;
+use FlintPHP\Framework\WebSocket\Exception\HandshakeException;
 use InvalidArgumentException;
 
 /**
@@ -67,13 +67,13 @@ final class OriginPolicy
     private static function normalizeOrigin(string $origin): ?string
     {
         if ($origin === '' || trim($origin) !== $origin
-            || preg_match('/[\\x00-\\x20\\x7f]/', $origin) === 1) {
+            || preg_match('/[\x00-\x20\x7f]/', $origin) === 1) {
             return null;
         }
 
         // Origin serialization contains only scheme and authority. This also
         // avoids accepting empty ports such as "https://example.com:".
-        if (preg_match('~\\Ahttps?://[^/?#]+\\z~i', $origin) !== 1) {
+        if (preg_match('~\Ahttps?://[^/?#]+\z~i', $origin) !== 1) {
             return null;
         }
 
@@ -117,12 +117,22 @@ final class OriginPolicy
     {
         // IPv6 literals must be bracketed in an origin and pass actual IP validation.
         if (str_starts_with($host, '[') || str_ends_with($host, ']')) {
-            if (preg_match('/\\A\\[([0-9a-f:.]+)\\]\\z/i', $host, $matches) !== 1
+            if (preg_match('/\A\[([0-9a-f:.]+)\]\z/i', $host, $matches) !== 1
                 || filter_var($matches[1], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
                 return null;
             }
 
-            return '[' . strtolower($matches[1]) . ']';
+            $packed = inet_pton($matches[1]);
+            if ($packed === false) {
+                return null;
+            }
+
+            $canonical = inet_ntop($packed);
+            if ($canonical === false) {
+                return null;
+            }
+
+            return '[' . strtolower($canonical) . ']';
         }
 
         // Valid IPv4 literals are accepted; numeric dotted forms that are not
@@ -130,7 +140,7 @@ final class OriginPolicy
         if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
             return $host;
         }
-        if (preg_match('/\\A[0-9.]+\\z/', $host) === 1) {
+        if (preg_match('/\A[0-9.]+\z/', $host) === 1) {
             return null;
         }
 
@@ -142,7 +152,7 @@ final class OriginPolicy
 
         foreach (explode('.', $host) as $label) {
             if (strlen($label) > 63
-                || preg_match('/\\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\z/i', $label) !== 1) {
+                || preg_match('/\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z/i', $label) !== 1) {
                 return null;
             }
         }
