@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.2', '8.3']
+        php: ['8.2', '8.3', '8.4']
 
     steps:
       - name: Checkout
@@ -33,6 +33,9 @@ jobs:
 
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Audit installed dependencies
+        run: composer audit --no-interaction
 
       - name: Syntax check (lint)
         run: find src -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
