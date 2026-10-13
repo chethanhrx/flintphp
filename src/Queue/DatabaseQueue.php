@@ -158,7 +158,7 @@ final class DatabaseQueue implements QueueInterface
     {
         $this->connection->execute(
             'CREATE TABLE IF NOT EXISTS flint_jobs (
-                id TEXT PRIMARY KEY NOT NULL,
+                id VARCHAR(191) PRIMARY KEY NOT NULL,
                 queue TEXT NOT NULL,
                 job_class TEXT NOT NULL,
                 payload TEXT NOT NULL,
@@ -170,7 +170,7 @@ final class DatabaseQueue implements QueueInterface
 
         $this->connection->execute(
             'CREATE TABLE IF NOT EXISTS flint_failed_jobs (
-                id TEXT PRIMARY KEY NOT NULL,
+                id VARCHAR(191) PRIMARY KEY NOT NULL,
                 queue TEXT NOT NULL,
                 job_class TEXT NOT NULL,
                 payload TEXT NOT NULL,
