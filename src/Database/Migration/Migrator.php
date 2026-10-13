@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace FlintPHP\Framework\Database\Migration;
 
 use FlintPHP\Framework\Database\ConnectionInterface;
+use FlintPHP\Framework\Database\Exception\QueryException;
+use PDOException;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -169,12 +171,39 @@ final class Migrator
             )'
         );
 
-        // Safe upgrade path: add sequence column if existing table was created before sequence support
+        // Safe upgrade path: add sequence column if existing table was created before sequence support.
         try {
             $this->connection->execute('ALTER TABLE ' . self::TABLE . ' ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0');
-        } catch (\Throwable) {
-            // Column already present; ignore error safely
+        } catch (QueryException $exception) {
+            if (!$this->isDuplicateColumnError($exception)) {
+                throw $exception;
+            }
         }
+    }
+
+    /**
+     * Only suppress errors that indicate the sequence column already exists.
+     * Other migration-table upgrade failures must remain visible to the caller.
+     */
+    private function isDuplicateColumnError(QueryException $exception): bool
+    {
+        $previous = $exception->getPrevious();
+        if (!$previous instanceof PDOException) {
+            return false;
+        }
+
+        $errorInfo = $previous->errorInfo ?? [];
+        $sqlState = (string) ($errorInfo[0] ?? $previous->getCode());
+        $driverCode = (int) ($errorInfo[1] ?? 0);
+        $message = strtolower($previous->getMessage());
+
+        // MySQL/MariaDB: 42S21 / 1060; PostgreSQL: 42701; SQLite reports
+        // "duplicate column name" with a driver-specific SQLSTATE.
+        return $sqlState === '42S21'
+            || $driverCode === 1060
+            || $sqlState === '42701'
+            || str_contains($message, 'duplicate column name')
+            || str_contains($message, 'column "sequence" of relation "flint_migrations" already exists');
     }
 
     /**

@@ -6,11 +6,13 @@ namespace FlintPHP\Framework\Tests\Database;
 
 use FlintPHP\Framework\Database\ConnectionFactory;
 use FlintPHP\Framework\Database\ConnectionInterface;
+use FlintPHP\Framework\Database\Exception\QueryException;
 use FlintPHP\Framework\Database\Migration\MigrationInterface;
 use FlintPHP\Framework\Database\Migration\Migrator;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use PDOException;
 use RuntimeException;
 
 final class MigratorTest extends TestCase
@@ -191,6 +193,32 @@ final class MigratorTest extends TestCase
 
         // Rollback called without passing the installed migration
         $this->migrator->rollback([], 1);
+    }
+
+    #[Test]
+    public function migration_table_upgrade_does_not_swallow_unrelated_query_errors(): void
+    {
+        $connection = $this->createMock(ConnectionInterface::class);
+        $connection->expects($this->exactly(2))
+            ->method('execute')
+            ->willReturnCallback(static function (string $sql): int {
+                if (str_starts_with($sql, 'CREATE TABLE IF NOT EXISTS flint_migrations')) {
+                    return 0;
+                }
+
+                throw new QueryException(
+                    'Query failed: permission denied',
+                    0,
+                    new PDOException('SQLSTATE[HY000]: permission denied')
+                );
+            });
+
+        $migrator = new Migrator($connection);
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('permission denied');
+
+        $migrator->status([]);
     }
 
     #[Test]
