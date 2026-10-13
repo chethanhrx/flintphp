@@ -63,7 +63,7 @@ final class RateLimitMiddleware implements MiddlewareInterface
                 }
                 $current++;
                 if (!$this->cache->set($cacheKey, $current, $this->windowSeconds)) {
-                    throw new \\RuntimeException('Rate-limit counter could not be persisted.');
+                    throw new \RuntimeException('Rate-limit counter could not be persisted.');
                 }
             }
         } catch (Throwable) {
