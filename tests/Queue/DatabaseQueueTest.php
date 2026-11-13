@@ -149,25 +149,34 @@ final class DatabaseQueueTest extends TestCase
     }
 
     #[Test]
-    public function reservation_prevents_double_claim_and_expiry_recovers_abandoned_job(): void
+    public function reservation_prevents_double_claim_across_connections_and_recovers_abandoned_jobs(): void
     {
-        $db = ConnectionFactory::make(['driver' => 'sqlite', 'database' => ':memory:']);
-        $queue = new DatabaseQueue($db, reservationSeconds: 1);
-        $queue->push(new ExampleJob('recoverable'));
+        $database = tempnam(sys_get_temp_dir(), 'flint-queue-');
+        self::assertNotFalse($database);
 
-        $firstWorker = $queue->pop();
-        self::assertInstanceOf(ReservedJob::class, $firstWorker);
-        self::assertNull($queue->pop());
-        self::assertSame(1, $queue->size());
+        try {
+            $firstDb = ConnectionFactory::make(['driver' => 'sqlite', 'database' => $database]);
+            $secondDb = ConnectionFactory::make(['driver' => 'sqlite', 'database' => $database]);
+            $firstQueue = new DatabaseQueue($firstDb, reservationSeconds: 1);
+            $secondQueue = new DatabaseQueue($secondDb, reservationSeconds: 1);
+            $firstQueue->push(new ExampleJob('recoverable'));
 
-        // Simulate a worker process dying without ack/release/fail.
-        sleep(2);
-        $secondWorker = $queue->pop();
+            $firstWorker = $firstQueue->pop();
+            self::assertInstanceOf(ReservedJob::class, $firstWorker);
+            self::assertNull($secondQueue->pop());
+            self::assertSame(1, $secondQueue->size());
 
-        self::assertInstanceOf(ReservedJob::class, $secondWorker);
-        self::assertSame($firstWorker->id(), $secondWorker->id());
-        $secondWorker->acknowledge();
-        self::assertSame(0, $queue->size());
+            // Simulate the first worker process dying without ack/release/fail.
+            sleep(2);
+            $secondWorker = $secondQueue->pop();
+
+            self::assertInstanceOf(ReservedJob::class, $secondWorker);
+            self::assertSame($firstWorker->id(), $secondWorker->id());
+            $secondWorker->acknowledge();
+            self::assertSame(0, $firstQueue->size());
+        } finally {
+            @unlink($database);
+        }
     }
 
     #[Test]
