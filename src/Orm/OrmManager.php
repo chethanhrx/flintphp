@@ -145,7 +145,13 @@ final class OrmManager
     private function performInsert(Model $model, array $attributes): bool
     {
         $table = $model->getTable();
+        $primaryKey = $model->getPrimaryKey();
         $this->validateIdentifier($table);
+
+        // Let the database assign auto-increment / SERIAL ids: never INSERT an explicit NULL PK.
+        if (array_key_exists($primaryKey, $attributes) && $attributes[$primaryKey] === null) {
+            unset($attributes[$primaryKey]);
+        }
 
         $columns = [];
         $placeholders = [];
@@ -175,8 +181,6 @@ final class OrmManager
             $lastId = $this->connection->pdo()->lastInsertId();
 
             if ($lastId !== '0' && $lastId !== '') {
-                $primaryKey = $model->getPrimaryKey();
-
                 try {
                     $reflectionClass = new ReflectionClass($model);
                     if ($reflectionClass->hasProperty($primaryKey)) {

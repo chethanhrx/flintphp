@@ -101,9 +101,15 @@ final class PdoConnection implements ConnectionInterface
                     throw new QueryException('Array or object parameters are not supported.');
                 }
 
+                // Bind bool as 0/1 integers. PDO::PARAM_BOOL becomes 't'/'f' on PostgreSQL,
+                // which fails for INTEGER columns; 0/1 works on MySQL, PostgreSQL, and SQLite.
+                if (is_bool($value)) {
+                    $stmt->bindValue($bindKey, $value ? 1 : 0, PDO::PARAM_INT);
+                    continue;
+                }
+
                 $type = match (true) {
                     is_int($value) => PDO::PARAM_INT,
-                    is_bool($value) => PDO::PARAM_BOOL,
                     $value === null => PDO::PARAM_NULL,
                     default => PDO::PARAM_STR,
                 };
