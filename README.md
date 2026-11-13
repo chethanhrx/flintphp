@@ -6,7 +6,7 @@ A modern PHP framework for APIs and services.
 
 | | |
 |---|---|
-| **Version** | `1.1.0` (see [CHANGELOG](CHANGELOG.md)) |
+| **Version** | `1.2.0` (see [CHANGELOG](CHANGELOG.md)) |
 | **PHP** | 8.2+ |
 | **Package** | [`flintphp/framework`](https://packagist.org/packages/flintphp/framework) |
 | **Skeleton** | [`flintphp/skeleton`](https://packagist.org/packages/flintphp/skeleton) |
@@ -310,6 +310,23 @@ $db = $app->container()->get(\FlintPHP\Framework\Database\ConnectionInterface::c
 
 A small data-mapper ORM exists (`OrmManager`, models). Prefer the connection API when you want full control of SQL.
 
+## Database Queue
+
+`DatabaseQueue` stores serializable jobs in SQL and uses expiring reservations:
+
+```php
+use FlintPHP\Framework\Queue\DatabaseQueue;
+use FlintPHP\Framework\Queue\Worker;
+
+$queue = new DatabaseQueue($db, 'default', reservationSeconds: 120);
+$queue->push(new SendEmailJob(/* ... */));
+
+$worker = new Worker(maxAttempts: 3, retryDelaySeconds: 10);
+$worker->runOnce($queue);
+```
+
+A worker acknowledges a job only after its handler succeeds. If a worker exits before acknowledging, the reservation expires and another worker can retry the job. This is **at-least-once delivery**, not exactly-once delivery: make handlers idempotent and choose a reservation duration longer than the expected job runtime. Failed jobs are moved to `flint_failed_jobs` after the configured attempt limit. `ArrayQueue` remains an in-memory development/test queue and does not provide durable reservations.
+
 ---
 
 ## Config and `.env`
@@ -399,7 +416,7 @@ Pass the configured validator to the WebSocket handshake response builder. The p
 
 ## Limitations / Deferred Features
 
-FlintPHP provides opt-in server-side session primitives and CSRF middleware; neither is enabled automatically. `ArraySessionStore` is process-local for tests and development, while `FileSessionStore` persists JSON session records on a single host. Multi-host deployments must supply a durable shared `SessionStoreInterface` implementation. Review [session and CSRF configuration](docs/session-security.md) before enabling these features. Middleware and authentication primitives do not replace application-specific threat modelling, authorization policy review, or deployment hardening.
+FlintPHP provides opt-in server-side session primitives and CSRF middleware; neither is enabled automatically. `ArraySessionStore` is process-local for tests and development, while `FileSessionStore` persists JSON session records on a single host. Multi-host deployments must supply a durable shared `SessionStoreInterface` implementation. WebSocket support currently provides handshake/origin validation and frame/message primitives, not a complete production TCP server or transport. The framework uses its own HTTP request/response and middleware contracts; PSR-7/PSR-15 adapters are not currently bundled. Review [session and CSRF configuration](docs/session-security.md) before enabling these features. Middleware and authentication primitives do not replace application-specific threat modelling, authorization policy review, or deployment hardening.
 
 ## Testing
 

@@ -32,11 +32,37 @@ final class DatabaseCacheTest extends TestCase
     }
 
     #[Test]
-    public function increment_is_atomic_within_connection(): void
+    public function increment_uses_atomic_upsert_for_counter_values(): void
     {
         self::assertSame(1, $this->cache->increment('rl.demo', 1, 60));
         self::assertSame(2, $this->cache->increment('rl.demo', 1, 60));
         self::assertSame(5, $this->cache->increment('rl.demo', 3));
+
+        self::assertSame(5, $this->cache->get('rl.demo'));
+    }
+
+    #[Test]
+    public function increment_is_shared_between_independent_connections(): void
+    {
+        $database = tempnam(sys_get_temp_dir(), 'flint-cache-');
+        self::assertNotFalse($database);
+
+        try {
+            $first = new DatabaseCache(ConnectionFactory::make([
+                'driver' => 'sqlite',
+                'database' => $database,
+            ]));
+            $second = new DatabaseCache(ConnectionFactory::make([
+                'driver' => 'sqlite',
+                'database' => $database,
+            ]));
+
+            self::assertSame(1, $first->increment('shared.counter'));
+            self::assertSame(2, $second->increment('shared.counter'));
+            self::assertSame(3, $first->increment('shared.counter'));
+        } finally {
+            @unlink($database);
+        }
     }
 
     #[Test]

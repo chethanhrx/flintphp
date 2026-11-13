@@ -9,9 +9,11 @@ use Throwable;
 /**
  * Processes jobs from a queue.
  *
- * For DatabaseQueue + ReservedJob: failed jobs are released (retry) or failed
- * (dead-letter) based on maxAttempts. ArrayQueue behaviour is unchanged:
- * exceptions propagate and the job is already removed.
+ * Database reservations use at-least-once delivery: a successful job is
+ * acknowledged, while an unacknowledged reservation becomes visible again
+ * after its lease expires. Handlers should therefore be idempotent.
+ *
+ * ArrayQueue remains an in-memory queue and removes a job before handling it.
  */
 final class Worker
 {
@@ -24,13 +26,9 @@ final class Worker
         }
     }
 
-    /**
-     * Process one job. Returns true if a job was taken from the queue.
-     */
     public function runOnce(QueueInterface $queue): bool
     {
         $job = $queue->pop();
-
         if ($job === null) {
             return false;
         }
@@ -39,28 +37,27 @@ final class Worker
             $job->handle();
         } catch (Throwable $e) {
             if ($job instanceof ReservedJob) {
-                if ($job->attempts() + 1 < $this->maxAttempts) {
+                if ($job->attempts() < $this->maxAttempts) {
                     $job->release($this->retryDelaySeconds);
                 } else {
                     $job->fail($e->getMessage());
                 }
-
                 return true;
             }
 
             throw $e;
         }
 
+        if ($job instanceof ReservedJob) {
+            $job->acknowledge();
+        }
+
         return true;
     }
 
-    /**
-     * Process up to $max jobs. Returns number of jobs processed.
-     */
     public function run(QueueInterface $queue, int $max = 100): int
     {
         $processed = 0;
-
         while ($processed < $max && $this->runOnce($queue)) {
             $processed++;
         }

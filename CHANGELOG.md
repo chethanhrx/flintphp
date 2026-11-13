@@ -32,6 +32,13 @@ Production multi-host and database hardening release.
 
 ## [Unreleased]
 
+### Fixed
+
+- Database cache increments use atomic SQL upserts on MySQL, PostgreSQL, and SQLite, with the returned counter read under the same transaction.
+- Database queue jobs use expiring reservations, acknowledge only after successful handling, and recover abandoned jobs after lease expiry.
+- Database queue ordering uses creation timestamps instead of random job identifiers.
+- README version metadata now matches the 1.2.0 framework version.
+
 ### Notes
 
 Work after 1.2.0 will land here.
