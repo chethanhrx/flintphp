@@ -7,6 +7,7 @@ namespace FlintPHP\Framework\Console\Command;
 use FlintPHP\Framework\Console\CommandInterface;
 use FlintPHP\Framework\Console\InputInterface;
 use FlintPHP\Framework\Console\OutputInterface;
+use FlintPHP\Framework\Console\ParsedInputInterface;
 use FlintPHP\Framework\Database\Migration\MigrationInterface;
 use FlintPHP\Framework\Database\Migration\Migrator;
 
@@ -15,7 +16,7 @@ use FlintPHP\Framework\Database\Migration\Migrator;
  *
  *   $console->register(new MigrateRollbackCommand($migrator, $migrations));
  *
- * Options: --steps=N
+ * Options (ParsedInput): --steps=N
  */
 final class MigrateRollbackCommand implements CommandInterface
 {
@@ -41,14 +42,17 @@ final class MigrateRollbackCommand implements CommandInterface
     public function execute(InputInterface $input, OutputInterface $output): int
     {
         $steps = 1;
-        $raw = $input->getOption('steps');
-        if ($raw !== null && $raw !== '') {
-            if (!ctype_digit($raw) || (int) $raw < 1) {
-                $output->writeLn('Option --steps must be a positive integer.');
 
-                return 1;
+        if ($input instanceof ParsedInputInterface) {
+            $raw = $input->option('steps');
+            if ($raw !== null && $raw !== '') {
+                if (!ctype_digit($raw) || (int) $raw < 1) {
+                    $output->writeLn('Option --steps must be a positive integer.');
+
+                    return 1;
+                }
+                $steps = (int) $raw;
             }
-            $steps = (int) $raw;
         }
 
         $rolled = $this->migrator->rollback($this->migrations, $steps);
