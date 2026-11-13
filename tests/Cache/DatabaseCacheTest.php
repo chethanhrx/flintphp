@@ -6,17 +6,19 @@ namespace FlintPHP\Framework\Tests\Cache;
 
 use FlintPHP\Framework\Cache\DatabaseCache;
 use FlintPHP\Framework\Database\ConnectionFactory;
+use FlintPHP\Framework\Database\ConnectionInterface;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 final class DatabaseCacheTest extends TestCase
 {
     private DatabaseCache $cache;
+    private ConnectionInterface $db;
 
     protected function setUp(): void
     {
-        $db = ConnectionFactory::make(['driver' => 'sqlite', 'database' => ':memory:']);
-        $this->cache = new DatabaseCache($db);
+        $this->db = ConnectionFactory::make(['driver' => 'sqlite', 'database' => ':memory:']);
+        $this->cache = new DatabaseCache($this->db);
     }
 
     #[Test]
@@ -32,11 +34,65 @@ final class DatabaseCacheTest extends TestCase
     }
 
     #[Test]
-    public function increment_is_atomic_within_connection(): void
+    public function increment_uses_atomic_upsert_for_counter_values(): void
     {
         self::assertSame(1, $this->cache->increment('rl.demo', 1, 60));
         self::assertSame(2, $this->cache->increment('rl.demo', 1, 60));
         self::assertSame(5, $this->cache->increment('rl.demo', 3));
+
+        self::assertSame(5, $this->cache->get('rl.demo'));
+    }
+
+    #[Test]
+    public function increment_is_shared_between_independent_connections(): void
+    {
+        $database = tempnam(sys_get_temp_dir(), 'flint-cache-');
+        self::assertNotFalse($database);
+
+        try {
+            $first = new DatabaseCache(ConnectionFactory::make([
+                'driver' => 'sqlite',
+                'database' => $database,
+            ]));
+            $second = new DatabaseCache(ConnectionFactory::make([
+                'driver' => 'sqlite',
+                'database' => $database,
+            ]));
+
+            self::assertSame(1, $first->increment('shared.counter'));
+            self::assertSame(2, $second->increment('shared.counter'));
+            self::assertSame(3, $first->increment('shared.counter'));
+        } finally {
+            @unlink($database);
+        }
+    }
+
+    #[Test]
+    public function increment_preserves_existing_ttl_and_reinitializes_expired_keys(): void
+    {
+        $this->cache->increment('ttl.counter', 1, 60);
+        $before = (int) $this->db->fetchColumn(
+            'SELECT expires_at FROM flint_cache WHERE cache_key = ?',
+            ['ttl.counter']
+        );
+
+        self::assertSame(2, $this->cache->increment('ttl.counter'));
+        $after = (int) $this->db->fetchColumn(
+            'SELECT expires_at FROM flint_cache WHERE cache_key = ?',
+            ['ttl.counter']
+        );
+        self::assertSame($before, $after);
+
+        $this->db->execute(
+            'UPDATE flint_cache SET expires_at = ? WHERE cache_key = ?',
+            [time() - 1, 'ttl.counter']
+        );
+        self::assertSame(3, $this->cache->increment('ttl.counter', 3, 60));
+        $reinitialized = (int) $this->db->fetchColumn(
+            'SELECT expires_at FROM flint_cache WHERE cache_key = ?',
+            ['ttl.counter']
+        );
+        self::assertGreaterThan(time(), $reinitialized);
     }
 
     #[Test]

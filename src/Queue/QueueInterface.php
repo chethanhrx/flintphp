@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace FlintPHP\Framework\Queue;
 
 /**
- * Contract for a first-in-first-out (FIFO) queue.
+ * Contract for a queue that returns the oldest available job first.
  */
 interface QueueInterface
 {
@@ -18,9 +18,13 @@ interface QueueInterface
     public function push(JobInterface $job): string;
 
     /**
-     * Remove and return the next job from the front of the queue.
+     * Take the next available job from the queue.
      *
-     * @return JobInterface|null The next job, or null if the queue is empty.
+     * Volatile implementations may remove it immediately. Durable
+     * implementations may return a reservation that must be acknowledged
+     * after successful handling.
+     *
+     * @return JobInterface|null The next available job, or null if the queue is empty.
      */
     public function pop(): ?JobInterface;
 

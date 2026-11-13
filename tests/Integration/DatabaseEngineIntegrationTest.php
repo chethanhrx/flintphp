@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace FlintPHP\Framework\Tests\Integration;
 
+use FlintPHP\Framework\Cache\DatabaseCache;
 use FlintPHP\Framework\Database\ConnectionFactory;
 use FlintPHP\Framework\Database\ConnectionInterface;
 use FlintPHP\Framework\Database\Migration\MigrationInterface;
@@ -66,6 +67,19 @@ final class DatabaseEngineIntegrationTest extends TestCase
                 note TEXT NULL
             )'
         );
+    }
+
+    #[Test]
+    public function database_cache_counter_uses_atomic_engine_upsert(): void
+    {
+        $cache = new DatabaseCache($this->db);
+        $cache->clear();
+
+        self::assertSame(1, $cache->increment('integration.counter', 1, 60));
+        self::assertSame(3, $cache->increment('integration.counter', 2));
+        self::assertSame(3, $cache->get('integration.counter'));
+
+        $cache->clear();
     }
 
     #[Test]

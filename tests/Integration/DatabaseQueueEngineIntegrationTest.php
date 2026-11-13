@@ -109,7 +109,9 @@ final class DatabaseQueueEngineIntegrationTest extends TestCase
             ['value' => 'cross-engine-payload'],
             $reserved->inner()->toArray()
         );
-        self::assertSame(0, $reserved->attempts());
+        self::assertSame(1, $reserved->attempts());
+        self::assertSame(1, $this->queue->size());
+        $reserved->acknowledge();
         self::assertSame(0, $this->queue->size());
     }
 
