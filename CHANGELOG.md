@@ -5,43 +5,36 @@ All notable changes to FlintPHP are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-11-13
 
-Production-readiness hardening (explicit composition only). This section records work in progress and is not a released version.
-
-### Fixed
-
-- Added driver-aware SQL identifier quoting for MySQL, SQLite, and PostgreSQL ORM queries and writes.
-- Added regression tests for supported identifier quoting and rejection of invalid identifiers.
-- Added `Kernel::handleGlobals()` so request-construction failures are processed by the configured exception handler; documented it as the preferred front-controller entry point.
-- Reconciled the transaction wrapper's reported state with PDO when callers change transaction state through the exposed PDO connection.
-- Added strict WebSocket Origin allowlisting with normalized origins, host/port validation, and malformed IPv6 rejection.
-- Database queue primary keys use `VARCHAR(191)` for MySQL compatibility.
-
-### Changed
-
-- Database queue tables index `(queue, available_at)` and `(queue)` for efficient `pop()` / failure listing.
-- Queue string columns use bounded `VARCHAR` widths suitable for indexed MySQL columns.
-
-### Documentation
-
-- Clarified rate-limit backend guarantees and the limitations of process-local and filesystem cache stores.
-- Documented production session-store requirements, cookie settings, middleware ordering, and CSRF usage in `docs/session-security.md`.
+Production multi-host and database hardening release.
 
 ### Added
 
-- Added explicit server-side session primitives: `Session` and `SessionStoreInterface`.
-- Added `ArraySessionStore`, an expiring process-local store intended for development and tests.
-- Added `FileSessionStore` for single-host persistence using JSON records, strict session ID validation, restrictive permissions, locking, and atomic writes.
-- Added secure cookie configuration and opt-in `SessionMiddleware`.
-- Added session ID rotation for privilege changes and removal of the previous stored session record.
-- Added session-bound CSRF token generation and constant-time verification, plus opt-in `CsrfMiddleware` for unsafe HTTP methods.
-- Added **Database\\Migration\\Migrator** and **MigrationInterface** for versioned up/down migrations tracked in `flint_migrations`.
-- Added **ModelQueryBuilder** operators (`>`, `IN`, `LIKE`, …), `orderBy`, `limit`, `offset`, and quoted identifiers.
-- Added **CorsMiddleware**, **RateLimitMiddleware**, and **RequestIdMiddleware**.
-- Added **Health\\HealthChecker** to build a `/health` payload with an optional database check.
-- Added MySQL 8.4 and PostgreSQL 17 integration tests (queries, transactions, migrations, queue, ORM CRUD, bool/null binding).
-- Added `docker-compose.integration.yml` and a CI job for dual-engine integration coverage.
+- **DatabaseSessionStore** — shared sessions for multi-host apps (MySQL / PostgreSQL / SQLite).
+- **DatabaseCache** — shared cache with **atomic increment** for multi-host rate limiting.
+- **Advisory locks** on migrate/rollback (MySQL `GET_LOCK`, PostgreSQL advisory locks; SQLite no-op).
+- **migrate:status** and **migrate:rollback** console commands.
+- MySQL 8.4 and PostgreSQL 17 integration tests (queries, transactions, migrations, queue, ORM, bool/null).
+- `docker-compose.integration.yml` for local dual-engine verification.
+- Production checklist: `docs/production.md`.
+
+### Fixed
+
+- Queue indexes without MySQL-invalid `CREATE INDEX IF NOT EXISTS`.
+- Portable bool binding (`0`/`1`) across engines.
+- ORM insert omits null primary keys so `SERIAL` / `AUTO_INCREMENT` can assign ids.
+- Database queue primary keys and bounded VARCHAR columns for MySQL index rules.
+
+### Changed
+
+- Framework version constant set to **1.2.0**.
+
+## [Unreleased]
+
+### Notes
+
+Work after 1.2.0 will land here.
 
 ## [1.1.0] - 2026-10-12
 
