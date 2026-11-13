@@ -61,7 +61,7 @@ final class ReservedJob implements JobInterface
             $this->id,
             $this->reservationToken,
             $this->job,
-            $this->attempts + 1,
+            $this->attempts,
             $error,
         );
     }
