@@ -195,7 +195,7 @@ final class DatabaseQueue implements QueueInterface
             $this->connection->execute(
                 'INSERT INTO flint_failed_jobs (id, queue, job_class, payload, attempts, error, failed_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [$id, $this->queue, $job::class, $payload, $attempts, mb_substr($error, 0, 2000), $this->timestamp()]
+                [$id, $this->queue, $job::class, $payload, $attempts, $this->truncateError($error), $this->timestamp()]
             );
         });
     }
@@ -316,6 +316,13 @@ final class DatabaseQueue implements QueueInterface
         return str_contains($message, 'duplicate key name')
             || str_contains($message, 'already exists')
             || str_contains($message, 'duplicate');
+    }
+
+    private function truncateError(string $error): string
+    {
+        return function_exists('mb_substr')
+            ? mb_substr($error, 0, 2000)
+            : substr($error, 0, 2000);
     }
 
     private function timestamp(): string

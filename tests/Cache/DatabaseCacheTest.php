@@ -6,17 +6,19 @@ namespace FlintPHP\Framework\Tests\Cache;
 
 use FlintPHP\Framework\Cache\DatabaseCache;
 use FlintPHP\Framework\Database\ConnectionFactory;
+use FlintPHP\Framework\Database\ConnectionInterface;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 final class DatabaseCacheTest extends TestCase
 {
     private DatabaseCache $cache;
+    private ConnectionInterface $db;
 
     protected function setUp(): void
     {
-        $db = ConnectionFactory::make(['driver' => 'sqlite', 'database' => ':memory:']);
-        $this->cache = new DatabaseCache($db);
+        $this->db = ConnectionFactory::make(['driver' => 'sqlite', 'database' => ':memory:']);
+        $this->cache = new DatabaseCache($this->db);
     }
 
     #[Test]
@@ -63,6 +65,34 @@ final class DatabaseCacheTest extends TestCase
         } finally {
             @unlink($database);
         }
+    }
+
+    #[Test]
+    public function increment_preserves_existing_ttl_and_reinitializes_expired_keys(): void
+    {
+        $this->cache->increment('ttl.counter', 1, 60);
+        $before = (int) $this->db->fetchColumn(
+            'SELECT expires_at FROM flint_cache WHERE cache_key = ?',
+            ['ttl.counter']
+        );
+
+        self::assertSame(2, $this->cache->increment('ttl.counter'));
+        $after = (int) $this->db->fetchColumn(
+            'SELECT expires_at FROM flint_cache WHERE cache_key = ?',
+            ['ttl.counter']
+        );
+        self::assertSame($before, $after);
+
+        $this->db->execute(
+            'UPDATE flint_cache SET expires_at = ? WHERE cache_key = ?',
+            [time() - 1, 'ttl.counter']
+        );
+        self::assertSame(3, $this->cache->increment('ttl.counter', 3, 60));
+        $reinitialized = (int) $this->db->fetchColumn(
+            'SELECT expires_at FROM flint_cache WHERE cache_key = ?',
+            ['ttl.counter']
+        );
+        self::assertGreaterThan(time(), $reinitialized);
     }
 
     #[Test]

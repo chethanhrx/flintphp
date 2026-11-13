@@ -106,8 +106,9 @@ final class DatabaseQueueTest extends TestCase
         $worker->runOnce($queue);
         self::assertSame(0, $queue->size());
 
-        $failed = $db->fetchColumn('SELECT COUNT(*) FROM flint_failed_jobs');
-        self::assertSame(1, (int) $failed);
+        $failed = $db->fetch('SELECT attempts FROM flint_failed_jobs');
+        self::assertNotNull($failed);
+        self::assertSame(2, (int) $failed['attempts']);
     }
 
     #[Test]
