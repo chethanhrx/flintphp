@@ -8,6 +8,7 @@ use FlintPHP\Framework\Database\ConnectionInterface;
 use FlintPHP\Framework\Database\Exception\QueryException;
 use InvalidArgumentException;
 use JsonException;
+use PDOException;
 use RuntimeException;
 
 /**
@@ -181,37 +182,57 @@ final class DatabaseQueue implements QueueInterface
             )'
         );
 
+        // MySQL does not support CREATE INDEX IF NOT EXISTS; create and ignore duplicates.
         $this->ensureIndex(
-            'flint_jobs_queue_available_at',
             'CREATE INDEX flint_jobs_queue_available_at ON flint_jobs (queue, available_at)'
         );
         $this->ensureIndex(
-            'flint_failed_jobs_queue',
             'CREATE INDEX flint_failed_jobs_queue ON flint_failed_jobs (queue)'
         );
     }
 
     /**
-     * Create an index if missing. Ignores "already exists" errors across engines.
+     * Create an index. Ignores "already exists" across MySQL, PostgreSQL, and SQLite.
      */
-    private function ensureIndex(string $name, string $sql): void
+    private function ensureIndex(string $sql): void
     {
         try {
-            // IF NOT EXISTS is supported on MySQL 8+, PostgreSQL, and SQLite.
-            $this->connection->execute(
-                str_replace('CREATE INDEX ' . $name, 'CREATE INDEX IF NOT EXISTS ' . $name, $sql)
-            );
+            $this->connection->execute($sql);
         } catch (QueryException $exception) {
-            $message = strtolower($exception->getMessage());
-            if (
-                str_contains($message, 'duplicate key name')
-                || str_contains($message, 'already exists')
-                || str_contains($message, 'duplicate')
-            ) {
+            if ($this->isDuplicateIndexError($exception)) {
                 return;
             }
 
             throw $exception;
         }
+    }
+
+    private function isDuplicateIndexError(QueryException $exception): bool
+    {
+        $previous = $exception->getPrevious();
+        $message = strtolower($exception->getMessage());
+
+        if ($previous instanceof PDOException) {
+            $errorInfo = $previous->errorInfo ?? [];
+            $sqlState = (string) ($errorInfo[0] ?? $previous->getCode());
+            $driverCode = (int) ($errorInfo[1] ?? 0);
+            $pdoMessage = strtolower($previous->getMessage());
+
+            // MySQL: 42000 / 1061 Duplicate key name
+            // PostgreSQL: 42P07 duplicate_table / 42710 duplicate_object
+            if (
+                $driverCode === 1061
+                || $sqlState === '42P07'
+                || $sqlState === '42710'
+                || str_contains($pdoMessage, 'duplicate key name')
+                || str_contains($pdoMessage, 'already exists')
+            ) {
+                return true;
+            }
+        }
+
+        return str_contains($message, 'duplicate key name')
+            || str_contains($message, 'already exists')
+            || str_contains($message, 'duplicate');
     }
 }
