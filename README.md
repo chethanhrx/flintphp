@@ -325,7 +325,7 @@ $worker = new Worker(maxAttempts: 3, retryDelaySeconds: 10);
 $worker->runOnce($queue);
 ```
 
-A worker acknowledges a job only after its handler succeeds. If a worker exits before acknowledging, the reservation expires and another worker can retry the job. This is **at-least-once delivery**, not exactly-once delivery: make handlers idempotent and choose a reservation duration longer than the expected job runtime. Failed jobs are moved to `flint_failed_jobs` after the configured attempt limit. `ArrayQueue` remains an in-memory development/test queue and does not provide durable reservations.
+A worker acknowledges a job only after its handler succeeds. If a worker exits before acknowledging, the reservation expires and another worker can retry the job. This is **at-least-once delivery**, not exactly-once delivery: make handlers idempotent and choose a reservation duration longer than the expected job runtime. Consumers that call `pop()` directly must call `acknowledge()` on the returned `ReservedJob` after successful handling; otherwise the lease expires and the job can be retried. Failed jobs are moved to `flint_failed_jobs` after the configured attempt limit. `ArrayQueue` remains an in-memory development/test queue and does not provide durable reservations.
 
 ---
 
