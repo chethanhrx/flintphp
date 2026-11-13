@@ -22,7 +22,7 @@ final class FlintPHPTest extends TestCase
     #[Test]
     public function it_returns_the_framework_version(): void
     {
-        $this->assertSame('1.1.0', FlintPHP::version());
-        $this->assertSame('1.1.0', FlintPHP::VERSION);
+        $this->assertSame('1.2.0', FlintPHP::version());
+        $this->assertSame('1.2.0', FlintPHP::VERSION);
     }
 }
