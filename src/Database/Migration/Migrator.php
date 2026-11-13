@@ -9,11 +9,17 @@ use FlintPHP\Framework\Database\Exception\QueryException;
 use PDOException;
 use InvalidArgumentException;
 use RuntimeException;
+use Throwable;
 
 /**
  * Runs migrations in order and tracks applied ids in `flint_migrations`.
  *
  * Explicit: you pass MigrationInterface instances; nothing is auto-discovered.
+ *
+ * Concurrency:
+ * - migrate() and rollback() take a connection-scoped advisory lock (MySQL GET_LOCK,
+ *   PostgreSQL pg_try_advisory_lock). SQLite is a no-op lock.
+ * - Default lock name: flintphp_migrations. Timeout is configurable.
  *
  * Rollback guarantees:
  * - Tracks an incrementing sequence number to guarantee rollback in exact reverse application order,
@@ -31,9 +37,22 @@ final class Migrator
 {
     private const TABLE = 'flint_migrations';
 
+    private const DEFAULT_LOCK_NAME = 'flintphp_migrations';
+
+    private readonly AdvisoryLockInterface $lock;
+
     public function __construct(
         private readonly ConnectionInterface $connection,
+        ?AdvisoryLockInterface $lock = null,
+        private readonly int $lockTimeoutSeconds = 30,
+        private readonly string $lockName = self::DEFAULT_LOCK_NAME,
+        private readonly bool $useAdvisoryLock = true,
     ) {
+        $this->lock = $lock ?? new ConnectionAdvisoryLock($connection);
+
+        if ($this->lockTimeoutSeconds < 0) {
+            throw new InvalidArgumentException('lockTimeoutSeconds must be >= 0');
+        }
     }
 
     /**
@@ -41,43 +60,46 @@ final class Migrator
      * @return list<string> Applied migration ids
      *
      * @throws InvalidArgumentException On invalid or duplicate migration IDs
+     * @throws MigrationLockException When another migrator holds the lock
      */
     public function migrate(array $migrations): array
     {
-        $this->ensureTable();
-        $this->validateMigrations($migrations);
+        return $this->withLock(function () use ($migrations): array {
+            $this->ensureTable();
+            $this->validateMigrations($migrations);
 
-        $applied = $this->appliedIds();
-        $ran = [];
+            $applied = $this->appliedIds();
+            $ran = [];
 
-        $sorted = $migrations;
-        usort($sorted, static fn (MigrationInterface $a, MigrationInterface $b): int => strcmp($a->id(), $b->id()));
+            $sorted = $migrations;
+            usort($sorted, static fn (MigrationInterface $a, MigrationInterface $b): int => strcmp($a->id(), $b->id()));
 
-        $currentMaxSeq = (int) $this->connection->fetchColumn('SELECT COALESCE(MAX(sequence), 0) FROM ' . self::TABLE);
+            $currentMaxSeq = (int) $this->connection->fetchColumn('SELECT COALESCE(MAX(sequence), 0) FROM ' . self::TABLE);
 
-        foreach ($sorted as $migration) {
-            $id = $migration->id();
+            foreach ($sorted as $migration) {
+                $id = $migration->id();
 
-            if (isset($applied[$id])) {
-                continue;
+                if (isset($applied[$id])) {
+                    continue;
+                }
+
+                $currentMaxSeq++;
+                $seqToInsert = $currentMaxSeq;
+
+                $this->connection->transaction(function () use ($migration, $id, $seqToInsert): void {
+                    $migration->up($this->connection);
+                    $this->connection->execute(
+                        'INSERT INTO ' . self::TABLE . ' (id, applied_at, sequence) VALUES (?, ?, ?)',
+                        [$id, gmdate('c'), $seqToInsert]
+                    );
+                });
+
+                $ran[] = $id;
+                $applied[$id] = true;
             }
 
-            $currentMaxSeq++;
-            $seqToInsert = $currentMaxSeq;
-
-            $this->connection->transaction(function () use ($migration, $id, $seqToInsert): void {
-                $migration->up($this->connection);
-                $this->connection->execute(
-                    'INSERT INTO ' . self::TABLE . ' (id, applied_at, sequence) VALUES (?, ?, ?)',
-                    [$id, gmdate('c'), $seqToInsert]
-                );
-            });
-
-            $ran[] = $id;
-            $applied[$id] = true;
-        }
-
-        return $ran;
+            return $ran;
+        });
     }
 
     /**
@@ -88,6 +110,7 @@ final class Migrator
      *
      * @throws InvalidArgumentException On invalid arguments
      * @throws RuntimeException If an applied migration has no matching implementation
+     * @throws MigrationLockException When another migrator holds the lock
      */
     public function rollback(array $migrations, int $steps = 1): array
     {
@@ -95,49 +118,52 @@ final class Migrator
             throw new InvalidArgumentException('steps must be >= 1');
         }
 
-        $this->ensureTable();
-        $this->validateMigrations($migrations);
+        return $this->withLock(function () use ($migrations, $steps): array {
+            $this->ensureTable();
+            $this->validateMigrations($migrations);
 
-        $byId = [];
-        foreach ($migrations as $migration) {
-            $byId[$migration->id()] = $migration;
-        }
-
-        // Order by application sequence DESC, falling back to applied_at DESC and id DESC
-        $rows = $this->connection->fetchAll(
-            'SELECT id FROM ' . self::TABLE . ' ORDER BY sequence DESC, applied_at DESC, id DESC'
-        );
-
-        $rolled = [];
-        foreach ($rows as $row) {
-            if (count($rolled) >= $steps) {
-                break;
+            $byId = [];
+            foreach ($migrations as $migration) {
+                $byId[$migration->id()] = $migration;
             }
 
-            $id = (string) $row['id'];
-            if (!isset($byId[$id])) {
-                throw new RuntimeException(sprintf(
-                    'Cannot rollback migration "%s": implementation not provided.',
-                    $id
-                ));
+            $rows = $this->connection->fetchAll(
+                'SELECT id FROM ' . self::TABLE . ' ORDER BY sequence DESC, applied_at DESC, id DESC'
+            );
+
+            $rolled = [];
+            foreach ($rows as $row) {
+                if (count($rolled) >= $steps) {
+                    break;
+                }
+
+                $id = (string) $row['id'];
+                if (!isset($byId[$id])) {
+                    throw new RuntimeException(sprintf(
+                        'Cannot rollback migration "%s": implementation not provided.',
+                        $id
+                    ));
+                }
+
+                $this->connection->transaction(function () use ($byId, $id): void {
+                    $byId[$id]->down($this->connection);
+                    $this->connection->execute(
+                        'DELETE FROM ' . self::TABLE . ' WHERE id = ?',
+                        [$id]
+                    );
+                });
+
+                $rolled[] = $id;
             }
 
-            $this->connection->transaction(function () use ($byId, $id): void {
-                $byId[$id]->down($this->connection);
-                $this->connection->execute(
-                    'DELETE FROM ' . self::TABLE . ' WHERE id = ?',
-                    [$id]
-                );
-            });
-
-            $rolled[] = $id;
-        }
-
-        return $rolled;
+            return $rolled;
+        });
     }
 
     /**
      * Report status of migrations: [x] applied, [ ] pending.
+     *
+     * Status is read-only and does not take the advisory lock so monitoring stays cheap.
      *
      * @param list<MigrationInterface> $migrations
      * @return list<string>
@@ -161,6 +187,30 @@ final class Migrator
         return $out;
     }
 
+    /**
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
+    private function withLock(callable $callback): mixed
+    {
+        if (!$this->useAdvisoryLock) {
+            return $callback();
+        }
+
+        $this->lock->acquire($this->lockName, $this->lockTimeoutSeconds);
+
+        try {
+            return $callback();
+        } finally {
+            try {
+                $this->lock->release($this->lockName);
+            } catch (Throwable) {
+                // Do not mask the original migration error if release fails.
+            }
+        }
+    }
+
     private function ensureTable(): void
     {
         $this->connection->execute(
@@ -171,7 +221,6 @@ final class Migrator
             )'
         );
 
-        // Safe upgrade path: add sequence column if existing table was created before sequence support.
         try {
             $this->connection->execute('ALTER TABLE ' . self::TABLE . ' ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0');
         } catch (QueryException $exception) {
@@ -181,10 +230,6 @@ final class Migrator
         }
     }
 
-    /**
-     * Only suppress errors that indicate the sequence column already exists.
-     * Other migration-table upgrade failures must remain visible to the caller.
-     */
     private function isDuplicateColumnError(QueryException $exception): bool
     {
         $previous = $exception->getPrevious();
@@ -197,8 +242,6 @@ final class Migrator
         $driverCode = (int) ($errorInfo[1] ?? 0);
         $message = strtolower($previous->getMessage());
 
-        // MySQL/MariaDB: 42S21 / 1060; PostgreSQL: 42701; SQLite reports
-        // "duplicate column name" with a driver-specific SQLSTATE.
         return $sqlState === '42S21'
             || $driverCode === 1060
             || $sqlState === '42701'
@@ -207,10 +250,7 @@ final class Migrator
     }
 
     /**
-     * Validate that all items implement MigrationInterface, have valid safe IDs, and are unique.
-     *
      * @param list<MigrationInterface> $migrations
-     * @throws InvalidArgumentException
      */
     private function validateMigrations(array $migrations): void
     {
