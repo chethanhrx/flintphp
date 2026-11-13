@@ -16,6 +16,12 @@ Production-readiness hardening (explicit composition only). This section records
 - Added `Kernel::handleGlobals()` so request-construction failures are processed by the configured exception handler; documented it as the preferred front-controller entry point.
 - Reconciled the transaction wrapper's reported state with PDO when callers change transaction state through the exposed PDO connection.
 - Added strict WebSocket Origin allowlisting with normalized origins, host/port validation, and malformed IPv6 rejection.
+- Database queue primary keys use `VARCHAR(191)` for MySQL compatibility.
+
+### Changed
+
+- Database queue tables index `(queue, available_at)` and `(queue)` for efficient `pop()` / failure listing.
+- Queue string columns use bounded `VARCHAR` widths suitable for indexed MySQL columns.
 
 ### Documentation
 
@@ -34,6 +40,8 @@ Production-readiness hardening (explicit composition only). This section records
 - Added **ModelQueryBuilder** operators (`>`, `IN`, `LIKE`, …), `orderBy`, `limit`, `offset`, and quoted identifiers.
 - Added **CorsMiddleware**, **RateLimitMiddleware**, and **RequestIdMiddleware**.
 - Added **Health\\HealthChecker** to build a `/health` payload with an optional database check.
+- Added MySQL 8.4 and PostgreSQL 17 integration tests (queries, transactions, migrations, queue, ORM CRUD, bool/null binding).
+- Added `docker-compose.integration.yml` and a CI job for dual-engine integration coverage.
 
 ## [1.1.0] - 2026-10-12
 

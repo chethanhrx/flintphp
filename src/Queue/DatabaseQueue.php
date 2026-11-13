@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FlintPHP\Framework\Queue;
 
 use FlintPHP\Framework\Database\ConnectionInterface;
+use FlintPHP\Framework\Database\Exception\QueryException;
 use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
@@ -159,25 +160,58 @@ final class DatabaseQueue implements QueueInterface
         $this->connection->execute(
             'CREATE TABLE IF NOT EXISTS flint_jobs (
                 id VARCHAR(191) PRIMARY KEY NOT NULL,
-                queue TEXT NOT NULL,
+                queue VARCHAR(64) NOT NULL,
                 job_class TEXT NOT NULL,
                 payload TEXT NOT NULL,
                 attempts INTEGER NOT NULL DEFAULT 0,
-                available_at TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                available_at VARCHAR(32) NOT NULL,
+                created_at VARCHAR(32) NOT NULL
             )'
         );
 
         $this->connection->execute(
             'CREATE TABLE IF NOT EXISTS flint_failed_jobs (
                 id VARCHAR(191) PRIMARY KEY NOT NULL,
-                queue TEXT NOT NULL,
+                queue VARCHAR(64) NOT NULL,
                 job_class TEXT NOT NULL,
                 payload TEXT NOT NULL,
                 attempts INTEGER NOT NULL,
                 error TEXT NOT NULL,
-                failed_at TEXT NOT NULL
+                failed_at VARCHAR(32) NOT NULL
             )'
         );
+
+        $this->ensureIndex(
+            'flint_jobs_queue_available_at',
+            'CREATE INDEX flint_jobs_queue_available_at ON flint_jobs (queue, available_at)'
+        );
+        $this->ensureIndex(
+            'flint_failed_jobs_queue',
+            'CREATE INDEX flint_failed_jobs_queue ON flint_failed_jobs (queue)'
+        );
+    }
+
+    /**
+     * Create an index if missing. Ignores "already exists" errors across engines.
+     */
+    private function ensureIndex(string $name, string $sql): void
+    {
+        try {
+            // IF NOT EXISTS is supported on MySQL 8+, PostgreSQL, and SQLite.
+            $this->connection->execute(
+                str_replace('CREATE INDEX ' . $name, 'CREATE INDEX IF NOT EXISTS ' . $name, $sql)
+            );
+        } catch (QueryException $exception) {
+            $message = strtolower($exception->getMessage());
+            if (
+                str_contains($message, 'duplicate key name')
+                || str_contains($message, 'already exists')
+                || str_contains($message, 'duplicate')
+            ) {
+                return;
+            }
+
+            throw $exception;
+        }
     }
 }

@@ -29,7 +29,7 @@ final class DatabaseEngineIntegrationTest extends TestCase
             self::fail('FLINTPHP_TEST_DB_DRIVER must be mysql or pgsql.');
         }
 
-        $this->db = ConnectionFactory::make([
+        $config = [
             'driver' => $driver,
             'host' => getenv('FLINTPHP_TEST_DB_HOST') ?: '127.0.0.1',
             'port' => getenv('FLINTPHP_TEST_DB_PORT')
@@ -37,7 +37,13 @@ final class DatabaseEngineIntegrationTest extends TestCase
             'database' => getenv('FLINTPHP_TEST_DB_NAME') ?: 'flintphp_test',
             'username' => getenv('FLINTPHP_TEST_DB_USER') ?: 'flintphp',
             'password' => getenv('FLINTPHP_TEST_DB_PASSWORD') ?: 'flintphp_test',
-        ]);
+        ];
+
+        if ($driver === 'mysql') {
+            $config['charset'] = 'utf8mb4';
+        }
+
+        $this->db = ConnectionFactory::make($config);
 
         // Force a real connection: configured integration tests must not silently skip.
         $this->assertSame(1, (int) $this->db->fetchColumn('SELECT 1'));
@@ -45,10 +51,19 @@ final class DatabaseEngineIntegrationTest extends TestCase
         // These tests require a dedicated disposable database.
         $this->db->execute('DROP TABLE IF EXISTS flint_migrations');
         $this->db->execute('DROP TABLE IF EXISTS flintphp_integration_records');
+        $this->db->execute('DROP TABLE IF EXISTS flintphp_type_probe');
         $this->db->execute(
             'CREATE TABLE flintphp_integration_records (
                 id VARCHAR(191) PRIMARY KEY NOT NULL,
                 payload TEXT NOT NULL
+            )'
+        );
+        // INTEGER flag keeps bool binding portable (MySQL TINYINT/INT, Postgres integer).
+        $this->db->execute(
+            'CREATE TABLE flintphp_type_probe (
+                id VARCHAR(191) PRIMARY KEY NOT NULL,
+                flag INTEGER NOT NULL,
+                note TEXT NULL
             )'
         );
     }
@@ -150,5 +165,37 @@ final class DatabaseEngineIntegrationTest extends TestCase
                 ['migration-record']
             )
         );
+    }
+
+    #[Test]
+    public function binds_booleans_and_nulls_under_native_prepares(): void
+    {
+        $this->db->execute(
+            'INSERT INTO flintphp_type_probe (id, flag, note) VALUES (?, ?, ?)',
+            ['bool-true', true, null]
+        );
+        $this->db->execute(
+            'INSERT INTO flintphp_type_probe (id, flag, note) VALUES (?, ?, ?)',
+            ['bool-false', false, 'present']
+        );
+
+        $trueRow = $this->db->fetch(
+            'SELECT flag, note FROM flintphp_type_probe WHERE id = ?',
+            ['bool-true']
+        );
+        $falseRow = $this->db->fetch(
+            'SELECT flag, note FROM flintphp_type_probe WHERE id = ?',
+            ['bool-false']
+        );
+
+        self::assertNotNull($trueRow);
+        self::assertNotNull($falseRow);
+
+        // Engines may return 1/0, "1"/"0", or true/false — assert truthiness.
+        self::assertTrue((bool) $trueRow['flag'] || (int) $trueRow['flag'] === 1);
+        self::assertTrue((int) $trueRow['flag'] === 1 || $trueRow['flag'] === true || $trueRow['flag'] === '1');
+        self::assertTrue((int) $falseRow['flag'] === 0 || $falseRow['flag'] === false || $falseRow['flag'] === '0');
+        self::assertNull($trueRow['note']);
+        self::assertSame('present', $falseRow['note']);
     }
 }
